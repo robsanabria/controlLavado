@@ -318,7 +318,10 @@
     private async Task Recargar()
     {
         enCurso = await Svc.EnCursoAsync(Tipo);
-        historial = await Svc.ListarAsync(Tipo);
+        // La grilla muestra únicamente los lavados que todavía no se finalizaron.
+        historial = (await Svc.ListarAsync(Tipo))
+            .Where(l => l.Estado != EstadoLavado.Finalizado)
+            .ToList();
         disp = await Svc.DisponibilidadAsync(Tipo);
     }
 
