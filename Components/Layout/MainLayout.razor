@@ -1,0 +1,20 @@
+@inherits LayoutComponentBase
+
+<div class="app">
+    <nav class="topbar">
+        <div class="brand">🧼 Control de Lavados</div>
+        <div class="links">
+            <NavLink class="navlink" href="/camiones" Match="NavLinkMatch.All">🚚 Camiones</NavLink>
+            <NavLink class="navlink" href="/hielo">🧊 Fábrica de Hielo</NavLink>
+        </div>
+    </nav>
+    <main class="content">
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Ocurrió un error inesperado.
+    <a href="." class="reload">Recargar</a>
+    <span class="dismiss">🗙</span>
+</div>

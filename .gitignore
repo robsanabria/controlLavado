@@ -1,0 +1,17 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# Local config con secretos (cadena de conexión, etc.)
+appsettings.*.local.json
+
+# Build / publish
+publish/
+*.dll
+*.pdb

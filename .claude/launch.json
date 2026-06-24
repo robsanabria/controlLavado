@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "controllavados",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "ControlLavados.csproj", "--launch-profile", "http"],
+      "port": 5136
+    }
+  ]
+}

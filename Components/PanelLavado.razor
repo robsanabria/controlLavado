@@ -1,0 +1,387 @@
+@using System.Globalization
+@inject LavadoService Svc
+
+<div class="panel">
+
+    <!-- ============ NUEVO LAVADO ============ -->
+    <section class="card">
+        <h2>@(EsCamion ? "Nuevo lavado de camión" : "Nuevo lavado")</h2>
+        <div class="form-grid">
+            <label>
+                <span>@(EsCamion ? "Patente de unidad" : "Equipo / sector")</span>
+                <select @bind="form.Patente">
+                    <option value="">— elegir —</option>
+                    @foreach (var p in Patentes)
+                    {
+                        <option value="@p">@p</option>
+                    }
+                </select>
+            </label>
+
+            @if (EsCamion)
+            {
+                <label>
+                    <span>Dársena</span>
+                    <select @bind="form.Darsena">
+                        <option value="">— elegir —</option>
+                        @foreach (var d in Catalogo.Darsenas)
+                        {
+                            <option value="@d">@d</option>
+                        }
+                    </select>
+                </label>
+            }
+
+            <label>
+                <span>Frigorífico</span>
+                <select @bind="form.Frigorifico">
+                    <option value="">— elegir —</option>
+                    @foreach (var f in Catalogo.Frigorificos)
+                    {
+                        <option value="@f">@f</option>
+                    }
+                </select>
+            </label>
+
+            <label>
+                <span>Tambores</span>
+                <input type="number" min="0" @bind="form.Tambores" />
+            </label>
+
+            <label>
+                <span>Pallets</span>
+                <input type="number" min="0" @bind="form.Pallets" />
+            </label>
+        </div>
+
+        <div class="operarios">
+            <span class="operarios-titulo">Operarios</span>
+            <div class="chips">
+                @foreach (var op in Catalogo.Operarios)
+                {
+                    var sel = form.Operarios.Contains(op.Nombre);
+                    <button type="button"
+                            class="chip @(sel ? "chip-on" : "")"
+                            @onclick="() => Toggle(form, op.Nombre)">
+                        @op.Nombre <small>@op.Tipo</small>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <label class="full">
+            <span>Incidencias generales</span>
+            <textarea rows="2" @bind="form.Incidencias" placeholder="Opcional…"></textarea>
+        </label>
+
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <p class="error">@error</p>
+        }
+
+        <button class="btn btn-primary" @onclick="Iniciar">
+            @(EsCamion ? "▶ Iniciar Atraco" : "▶ Iniciar Lavado")
+        </button>
+    </section>
+
+    <!-- ============ EN CURSO ============ -->
+    <section class="card">
+        <h2>En curso (@enCurso.Count)</h2>
+        @if (enCurso.Count == 0)
+        {
+            <p class="muted">No hay lavados en curso.</p>
+        }
+        else
+        {
+            <div class="curso-grid">
+                @foreach (var l in enCurso)
+                {
+                    <div class="curso">
+                        <div class="curso-head">
+                            <strong>@l.Patente</strong>
+                            @if (EsCamion && !string.IsNullOrEmpty(l.Darsena))
+                            {
+                                <span class="badge">@l.Darsena</span>
+                            }
+                            <span class="estado estado-@l.Estado.Replace(" ", "")">@l.Estado</span>
+                        </div>
+                        <div class="curso-times">
+                            @if (EsCamion)
+                            {
+                                <span>Atraco: <b>@FmtHora(l.InicioAtraco)</b></span>
+                            }
+                            <span>Inicio lavado: <b>@FmtHora(l.InicioLavado)</b></span>
+                            <span>Fin lavado: <b>@FmtHora(l.FinLavado)</b></span>
+                            @if (EsCamion)
+                            {
+                                <span>Desatraco: <b>@FmtHora(l.Desatraco)</b></span>
+                            }
+                        </div>
+                        <div class="curso-ops">@(string.IsNullOrEmpty(l.OperariosTexto) ? "(sin operarios)" : l.OperariosTexto)</div>
+
+                        @{ var next = LavadoService.ProximaEtapa(l); }
+                        <div class="curso-actions">
+                            @if (next is not null)
+                            {
+                                <button class="btn btn-primary" @onclick="() => Avanzar(l.Id)">@next</button>
+                            }
+                            <button class="btn btn-ghost" @onclick="() => Editar(l)">Editar</button>
+                            <button class="btn btn-danger" @onclick="() => Eliminar(l.Id)">✕</button>
+                        </div>
+
+                        @if (editId == l.Id)
+                        {
+                            <div class="editor">
+                                @if (EsCamion)
+                                {
+                                    <label><span>Dársena</span>
+                                        <select @bind="edit.Darsena">
+                                            <option value="">—</option>
+                                            @foreach (var d in Catalogo.Darsenas)
+                                            {
+                                                <option value="@d">@d</option>
+                                            }
+                                        </select>
+                                    </label>
+                                }
+                                <label><span>Frigorífico</span>
+                                    <select @bind="edit.Frigorifico">
+                                        <option value="">—</option>
+                                        @foreach (var f in Catalogo.Frigorificos)
+                                        {
+                                            <option value="@f">@f</option>
+                                        }
+                                    </select>
+                                </label>
+                                <div class="mini">
+                                    <label><span>Tambores</span><input type="number" min="0" @bind="edit.Tambores" /></label>
+                                    <label><span>Pallets</span><input type="number" min="0" @bind="edit.Pallets" /></label>
+                                </div>
+                                <div class="chips">
+                                    @foreach (var op in Catalogo.Operarios)
+                                    {
+                                        var sel = edit.Operarios.Contains(op.Nombre);
+                                        <button type="button" class="chip @(sel ? "chip-on" : "")"
+                                                @onclick="() => Toggle(edit, op.Nombre)">@op.Nombre</button>
+                                    }
+                                </div>
+                                <textarea rows="2" @bind="edit.Incidencias" placeholder="Incidencias…"></textarea>
+                                <div class="curso-actions">
+                                    <button class="btn btn-primary" @onclick="GuardarEdicion">Guardar</button>
+                                    <button class="btn btn-ghost" @onclick="() => editId = null">Cancelar</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+    <!-- ============ HISTORIAL / GRILLA ============ -->
+    <section class="card">
+        <h2>Historial (@historial.Count)</h2>
+        <div class="tabla-scroll">
+            <table class="grilla">
+                <thead>
+                    <tr>
+                        <th>Marca temporal</th>
+                        <th>Fecha</th>
+                        <th>Turno</th>
+                        <th>N° Offal</th>
+                        <th>N° Agencia</th>
+                        <th>Op. por fecha</th>
+                        <th>@(EsCamion ? "Patente" : "Equipo")</th>
+                        @if (EsCamion)
+                        {
+                            <th>Dársena</th>
+                        }
+                        <th>Frigorífico</th>
+                        <th>Tambores</th>
+                        <th>Pallets</th>
+                        <th>Operarios</th>
+                        @if (EsCamion)
+                        {
+                            <th>Inicio Atraco</th>
+                        }
+                        <th>Inicio Lavado</th>
+                        <th>Fin Lavado</th>
+                        @if (EsCamion)
+                        {
+                            <th>Desatraco</th>
+                        }
+                        <th>Incidencias</th>
+                        @if (EsCamion)
+                        {
+                            <th>Atraco→Lavado</th>
+                        }
+                        <th>Lavado</th>
+                        @if (EsCamion)
+                        {
+                            <th>Fin→Desatraco</th>
+                        }
+                        <th>Total</th>
+                        <th>Semana</th>
+                        <th>Op. usados</th>
+                        <th>Op. semana</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var l in historial)
+                    {
+                        <tr>
+                            <td>@FmtFechaHora(l.MarcaTemporal)</td>
+                            <td>@l.Fecha.ToString("dd/MM/yyyy")</td>
+                            <td>@l.Turno</td>
+                            <td class="num">@l.NumOffal</td>
+                            <td class="num">@l.NumAgencia</td>
+                            <td class="num">@l.OperariosUsados</td>
+                            <td>@l.Patente</td>
+                            @if (EsCamion)
+                            {
+                                <td>@l.Darsena</td>
+                            }
+                            <td>@l.Frigorifico</td>
+                            <td class="num">@l.Tambores</td>
+                            <td class="num">@l.Pallets</td>
+                            <td class="ops">@l.OperariosTexto</td>
+                            @if (EsCamion)
+                            {
+                                <td>@FmtHora(l.InicioAtraco)</td>
+                            }
+                            <td>@FmtHora(l.InicioLavado)</td>
+                            <td>@FmtHora(l.FinLavado)</td>
+                            @if (EsCamion)
+                            {
+                                <td>@FmtHora(l.Desatraco)</td>
+                            }
+                            <td class="ops">@l.Incidencias</td>
+                            @if (EsCamion)
+                            {
+                                <td>@FmtDur(l.DurAtracoLavado)</td>
+                            }
+                            <td>@FmtDur(l.DurLavado)</td>
+                            @if (EsCamion)
+                            {
+                                <td>@FmtDur(l.DurFinDesatraco)</td>
+                            }
+                            <td><b>@FmtDur(l.TiempoTotal)</b></td>
+                            <td class="num">@l.Semana</td>
+                            <td class="num">@l.OperariosUsados</td>
+                            <td class="num">@l.OperariosUsados</td>
+                            <td><span class="estado estado-@l.Estado.Replace(" ", "")">@l.Estado</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public TipoLavado Tipo { get; set; }
+
+    private bool EsCamion => Tipo == TipoLavado.Camion;
+    private string[] Patentes => EsCamion ? Catalogo.PatentesCamion : Catalogo.EquiposHielo;
+
+    private List<Lavado> enCurso = new();
+    private List<Lavado> historial = new();
+
+    private FormModel form = new();
+    private FormModel edit = new();
+    private int? editId;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync() => await Recargar();
+
+    private async Task Recargar()
+    {
+        enCurso = await Svc.EnCursoAsync(Tipo);
+        historial = await Svc.ListarAsync(Tipo);
+    }
+
+    private void Toggle(FormModel m, string nombre)
+    {
+        if (!m.Operarios.Remove(nombre)) m.Operarios.Add(nombre);
+    }
+
+    private async Task Iniciar()
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(form.Patente))
+        {
+            error = EsCamion ? "Elegí una patente." : "Elegí un equipo.";
+            return;
+        }
+        await Svc.IniciarAsync(Tipo, form.ToDto());
+        form = new();
+        await Recargar();
+    }
+
+    private async Task Avanzar(int id)
+    {
+        await Svc.AvanzarAsync(id);
+        await Recargar();
+    }
+
+    private void Editar(Lavado l)
+    {
+        editId = l.Id;
+        edit = new FormModel
+        {
+            Darsena = l.Darsena,
+            Frigorifico = l.Frigorifico,
+            Tambores = l.Tambores,
+            Pallets = l.Pallets,
+            Incidencias = l.Incidencias,
+            Operarios = l.Operarios.Select(o => o.Nombre).ToList(),
+        };
+    }
+
+    private async Task GuardarEdicion()
+    {
+        if (editId is int id)
+        {
+            await Svc.GuardarEdicionAsync(id, edit.ToDto());
+            editId = null;
+            await Recargar();
+        }
+    }
+
+    private async Task Eliminar(int id)
+    {
+        await Svc.EliminarAsync(id);
+        if (editId == id) editId = null;
+        await Recargar();
+    }
+
+    // --- Formato ---
+    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-AR");
+    private static string FmtHora(DateTime? d) => d?.ToString("h:mm:ss tt", Es) ?? "--:--";
+    private static string FmtFechaHora(DateTime? d) => d?.ToString("dd/MM/yyyy HH:mm:ss", Es) ?? "--";
+    private static string FmtDur(TimeSpan? t) => t.HasValue ? $"{(int)t.Value.TotalHours}:{t.Value.Minutes:00}:{t.Value.Seconds:00}" : "--";
+
+    // Modelo de formulario (con operarios como lista mutable).
+    private class FormModel
+    {
+        public string Patente { get; set; } = "";
+        public string? Darsena { get; set; }
+        public string? Frigorifico { get; set; }
+        public int Tambores { get; set; }
+        public int Pallets { get; set; }
+        public string? Incidencias { get; set; }
+        public List<string> Operarios { get; set; } = new();
+
+        public NuevoLavado ToDto() => new()
+        {
+            Patente = Patente,
+            Darsena = Darsena,
+            Frigorifico = Frigorifico,
+            Tambores = Tambores,
+            Pallets = Pallets,
+            Incidencias = Incidencias,
+            Operarios = Operarios.ToList(),
+        };
+    }
+}
