@@ -25,11 +25,8 @@ public static class Catalogo
         "AC356EI", "AB186BD", "AD742JK", "AE091LM", "AF553NP",
     };
 
-    // -- Identificadores para fábrica de hielo (equipos/sectores) --
-    public static readonly string[] EquiposHielo =
-    {
-        "Cámara 1", "Cámara 2", "Planta Hielo",
-    };
+    // -- Fábrica de hielo: el sector es siempre este valor fijo --
+    public const string SectorHielo = "Fábrica de Hielo";
 
     // -- Dársenas (solo camiones) --
     public static readonly string[] Darsenas =

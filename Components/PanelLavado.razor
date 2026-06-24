@@ -7,19 +7,19 @@
     <section class="card">
         <h2>@(EsCamion ? "Nuevo lavado de camión" : "Nuevo lavado")</h2>
         <div class="form-grid">
-            <label>
-                <span>@(EsCamion ? "Patente de unidad" : "Equipo / sector")</span>
-                <select @bind="form.Patente">
-                    <option value="">— elegir —</option>
-                    @foreach (var p in PatentesDisponibles)
-                    {
-                        <option value="@p">@p</option>
-                    }
-                </select>
-            </label>
-
             @if (EsCamion)
             {
+                <label>
+                    <span>Patente de unidad</span>
+                    <select @bind="form.Patente">
+                        <option value="">— elegir —</option>
+                        @foreach (var p in PatentesDisponibles)
+                        {
+                            <option value="@p">@p</option>
+                        }
+                    </select>
+                </label>
+
                 <label>
                     <span>Dársena</span>
                     <select @bind="form.Darsena">
@@ -30,28 +30,35 @@
                         }
                     </select>
                 </label>
+
+                <label>
+                    <span>Frigorífico</span>
+                    <select @bind="form.Frigorifico">
+                        <option value="">— elegir —</option>
+                        @foreach (var f in Catalogo.Frigorificos)
+                        {
+                            <option value="@f">@f</option>
+                        }
+                    </select>
+                </label>
+
+                <label>
+                    <span>Tambores</span>
+                    <input type="number" min="0" @bind="form.Tambores" />
+                </label>
+
+                <label>
+                    <span>Pallets</span>
+                    <input type="number" min="0" @bind="form.Pallets" />
+                </label>
             }
-
-            <label>
-                <span>Frigorífico</span>
-                <select @bind="form.Frigorifico">
-                    <option value="">— elegir —</option>
-                    @foreach (var f in Catalogo.Frigorificos)
-                    {
-                        <option value="@f">@f</option>
-                    }
-                </select>
-            </label>
-
-            <label>
-                <span>Tambores</span>
-                <input type="number" min="0" @bind="form.Tambores" />
-            </label>
-
-            <label>
-                <span>Pallets</span>
-                <input type="number" min="0" @bind="form.Pallets" />
-            </label>
+            else
+            {
+                <label>
+                    <span>Equipo / sector</span>
+                    <input type="text" value="@Catalogo.SectorHielo" disabled />
+                </label>
+            }
 
             <label>
                 <span>Operarios</span>
@@ -211,10 +218,10 @@
                         @if (EsCamion)
                         {
                             <th>Dársena</th>
+                            <th>Frigorífico</th>
+                            <th>Tambores</th>
+                            <th>Pallets</th>
                         }
-                        <th>Frigorífico</th>
-                        <th>Tambores</th>
-                        <th>Pallets</th>
                         <th>Operarios</th>
                         @if (EsCamion)
                         {
@@ -256,10 +263,10 @@
                             @if (EsCamion)
                             {
                                 <td>@l.Darsena</td>
+                                <td>@l.Frigorifico</td>
+                                <td class="num">@l.Tambores</td>
+                                <td class="num">@l.Pallets</td>
                             }
-                            <td>@l.Frigorifico</td>
-                            <td class="num">@l.Tambores</td>
-                            <td class="num">@l.Pallets</td>
                             <td class="ops">@l.OperariosTexto</td>
                             @if (EsCamion)
                             {
@@ -297,7 +304,7 @@
     [Parameter, EditorRequired] public TipoLavado Tipo { get; set; }
 
     private bool EsCamion => Tipo == TipoLavado.Camion;
-    private string[] Patentes => EsCamion ? Catalogo.PatentesCamion : Catalogo.EquiposHielo;
+    private string[] Patentes => Catalogo.PatentesCamion; // solo se usa en la pantalla de camiones
 
     private List<Lavado> enCurso = new();
     private List<Lavado> historial = new();
@@ -310,6 +317,12 @@
     private Disponibilidad disp = new();      // para el formulario "nuevo"
     private Disponibilidad dispEdit = new();   // para el lavado en edición (excluye el propio)
     private int comboKey;                      // fuerza el reset visual del combo de operarios
+
+    protected override void OnInitialized()
+    {
+        // En hielo el sector es siempre fijo.
+        if (!EsCamion) form.Patente = Catalogo.SectorHielo;
+    }
 
     protected override async Task OnParametersSetAsync() => await Recargar();
 
@@ -358,6 +371,7 @@
         }
         await Svc.IniciarAsync(Tipo, form.ToDto());
         form = new();
+        if (!EsCamion) form.Patente = Catalogo.SectorHielo;
         await Recargar();
     }
 
