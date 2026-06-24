@@ -81,9 +81,36 @@ public class LavadoService
             .ToListAsync();
     }
 
-    /// <summary>Crea el registro y estampa la primera etapa (Atraco en camión, Lavado en hielo).</summary>
-    public async Task<Lavado> IniciarAsync(TipoLavado tipo, NuevoLavado datos)
+    /// <summary>Resultado de intentar iniciar un lavado.</summary>
+    public record InicioResultado(bool Ok, string? Error, Lavado? Lavado);
+
+    /// <summary>
+    /// Crea el registro y estampa la primera etapa (Atraco en camión, Lavado en hielo).
+    /// Revalida contra los lavados en curso (patente/dársena/operarios ocupados) para
+    /// evitar dobles asignaciones aunque dos usuarios envíen a la vez.
+    /// </summary>
+    public async Task<InicioResultado> IniciarAsync(TipoLavado tipo, NuevoLavado datos)
     {
+        await using var db = await _factory.CreateDbContextAsync();
+
+        // Revalidación server-side contra el estado actual.
+        var activos = await db.Lavados
+            .Include(l => l.Operarios)
+            .Where(l => l.Estado != EstadoLavado.Finalizado)
+            .ToListAsync();
+
+        if (activos.Any(l => l.Tipo == tipo && l.Patente == datos.Patente))
+            return new(false, $"La unidad «{datos.Patente}» ya tiene un lavado en curso.", null);
+
+        if (tipo == TipoLavado.Camion && !string.IsNullOrEmpty(datos.Darsena)
+            && activos.Any(l => l.Tipo == tipo && l.Darsena == datos.Darsena))
+            return new(false, $"La {datos.Darsena} ya está ocupada.", null);
+
+        var ocupados = activos.SelectMany(l => l.Operarios).Select(o => o.Nombre).ToHashSet();
+        var enConflicto = datos.Operarios.Where(o => ocupados.Contains(o)).ToList();
+        if (enConflicto.Count > 0)
+            return new(false, $"Operario(s) ya asignado(s) a otro lavado: {string.Join(", ", enConflicto)}.", null);
+
         var ahora = DateTime.Now;
         var lavado = new Lavado
         {
@@ -113,10 +140,9 @@ public class LavadoService
             lavado.Estado = EstadoLavado.Lavando;
         }
 
-        await using var db = await _factory.CreateDbContextAsync();
         db.Lavados.Add(lavado);
         await db.SaveChangesAsync();
-        return lavado;
+        return new(true, null, lavado);
     }
 
     /// <summary>Etiqueta del botón de la próxima etapa, o null si ya está finalizado.</summary>

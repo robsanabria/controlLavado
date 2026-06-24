@@ -92,8 +92,8 @@
             <p class="error">@error</p>
         }
 
-        <button class="btn btn-primary" @onclick="Iniciar">
-            @(EsCamion ? "▶ Iniciar Atraco" : "▶ Iniciar Lavado")
+        <button class="btn btn-primary btn-block" @onclick="Iniciar">
+            @(EsCamion ? "Iniciar Atraco" : "Iniciar Lavado")
         </button>
     </section>
 
@@ -359,17 +359,28 @@
     private async Task Iniciar()
     {
         error = null;
-        if (string.IsNullOrWhiteSpace(form.Patente))
+
+        // Validación de datos obligatorios.
+        var faltan = new List<string>();
+        if (string.IsNullOrWhiteSpace(form.Patente)) faltan.Add(EsCamion ? "Patente" : "Sector");
+        if (EsCamion && string.IsNullOrWhiteSpace(form.Darsena)) faltan.Add("Dársena");
+        if (EsCamion && string.IsNullOrWhiteSpace(form.Frigorifico)) faltan.Add("Frigorífico");
+        if (form.Operarios.Count == 0) faltan.Add("Operarios");
+        if (faltan.Count > 0)
         {
-            error = EsCamion ? "Elegí una patente." : "Elegí un equipo.";
+            error = "Faltan completar: " + string.Join(", ", faltan) + ".";
             return;
         }
-        if (EsCamion && string.IsNullOrWhiteSpace(form.Darsena))
+
+        // Inserción con revalidación server-side (anti doble-asignación).
+        var res = await Svc.IniciarAsync(Tipo, form.ToDto());
+        if (!res.Ok)
         {
-            error = "Elegí una dársena.";
+            error = res.Error;
+            await Recargar();
             return;
         }
-        await Svc.IniciarAsync(Tipo, form.ToDto());
+
         form = new();
         if (!EsCamion) form.Patente = Catalogo.SectorHielo;
         await Recargar();

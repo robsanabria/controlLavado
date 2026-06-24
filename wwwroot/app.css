@@ -83,10 +83,13 @@ select, input, textarea {
     border: 1px solid var(--line);
     color: var(--text);
     border-radius: 8px;
-    padding: 9px 10px;
-    font-size: 14px;
+    padding: 11px 12px;
+    font-size: 16px; /* >=16px evita el auto-zoom de iOS al enfocar */
     font-family: inherit;
+    width: 100%;
+    min-height: 44px; /* target táctil cómodo */
 }
+input[disabled] { opacity: .8; }
 select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent-2); border-color: transparent; }
 textarea { resize: vertical; width: 100%; }
 
@@ -141,9 +144,10 @@ textarea { resize: vertical; width: 100%; }
 .btn {
     border: none;
     border-radius: 8px;
-    padding: 9px 16px;
+    padding: 11px 18px;
+    min-height: 44px;
     font-weight: 600;
-    font-size: 14px;
+    font-size: 15px;
     cursor: pointer;
     font-family: inherit;
     transition: filter .12s, transform .05s;
@@ -152,7 +156,8 @@ textarea { resize: vertical; width: 100%; }
 .btn:active { transform: scale(.97); }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
-.btn-danger { background: var(--danger); color: #fff; padding: 9px 12px; }
+.btn-danger { background: var(--danger); color: #fff; padding: 11px 14px; }
+.btn-block { width: 100%; }
 
 .error { color: var(--danger); font-weight: 600; margin: 6px 0; }
 .muted { color: var(--muted); }
@@ -184,13 +189,35 @@ textarea { resize: vertical; width: 100%; }
 .estado-Finalizado { background: var(--accent); color: #fff; }
 
 /* ---------- Grilla ---------- */
-.tabla-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 8px; }
 .grilla { border-collapse: collapse; width: 100%; white-space: nowrap; font-size: 12.5px; }
 .grilla th, .grilla td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
 .grilla th { background: var(--panel-2); color: var(--muted); position: sticky; top: 0; font-weight: 600; }
 .grilla tr:hover td { background: rgba(255,255,255,.02); }
 .grilla .num { text-align: right; font-variant-numeric: tabular-nums; }
 .grilla .ops { white-space: normal; min-width: 160px; max-width: 240px; }
+
+/* ---------- Mobile (celulares) ---------- */
+@media (max-width: 640px) {
+    .content { padding: 14px 12px; }
+
+    .topbar { height: auto; padding: 8px 10px; flex-wrap: wrap; gap: 10px; }
+    .brand { width: 100%; text-align: center; font-size: 15px; }
+    .links { width: 100%; gap: 6px; }
+    .navlink { flex: 1; text-align: center; padding: 12px 8px; }
+
+    .page-head h1 { font-size: 19px; }
+    .page-head p { font-size: 13px; }
+
+    .card { padding: 14px; border-radius: 10px; }
+    .form-grid { grid-template-columns: 1fr; gap: 10px; }
+    .curso-grid { grid-template-columns: 1fr; }
+    .curso-actions .btn { flex: 1; }
+    .editor .mini { flex-direction: column; }
+
+    /* La grilla es ancha: se desplaza horizontalmente con el dedo */
+    .grilla { font-size: 12px; }
+}
 
 /* ---------- Blazor defaults ---------- */
 .valid.modified:not([type=checkbox]) { outline: 1px solid #26b050; }
