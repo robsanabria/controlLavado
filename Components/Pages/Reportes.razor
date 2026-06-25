@@ -1,0 +1,130 @@
+@page "/reportes"
+@rendermode InteractiveServer
+@using System.Globalization
+@inject ReporteService Rep
+@inject IJSRuntime JS
+
+<PageTitle>Reportes</PageTitle>
+
+<header class="page-head">
+    <h1>Reportes</h1>
+    <p>Métricas semanales por turno y exportación a Excel</p>
+</header>
+
+<div class="panel">
+    <section class="card">
+        <div class="form-grid">
+            <label>
+                <span>Circuito</span>
+                <select @bind="tipoSel" @bind:after="Cargar">
+                    <option value="Camion">Camiones</option>
+                    <option value="Hielo">Fábrica de Hielo</option>
+                    <option value="Todos">Todos</option>
+                </select>
+            </label>
+            <label>
+                <span>Desde</span>
+                <input type="date" @bind="desde" @bind:after="Cargar" />
+            </label>
+            <label>
+                <span>Hasta</span>
+                <input type="date" @bind="hasta" @bind:after="Cargar" />
+            </label>
+        </div>
+        <div class="curso-actions">
+            <button class="btn btn-ghost" @onclick="Limpiar">Limpiar filtros</button>
+            <button class="btn btn-primary" @onclick="Exportar" disabled="@(lavados.Count == 0)">Exportar a Excel</button>
+        </div>
+        <p class="muted" style="margin-top:10px">@lavados.Count lavados finalizados en el rango seleccionado.</p>
+    </section>
+
+    @if (metricas.Count == 0)
+    {
+        <section class="card"><p class="muted">No hay datos para mostrar con los filtros actuales.</p></section>
+    }
+    else
+    {
+        @foreach (var t in metricas)
+        {
+            <section class="card">
+                <h2>Turno @t.Turno</h2>
+                <div class="tabla-scroll">
+                    <table class="grilla">
+                        <thead>
+                            <tr>
+                                <th>Semana</th>
+                                <th>Lavados</th>
+                                <th>Total hs</th>
+                                <th>Prom. hs</th>
+                                <th>Operarios</th>
+                                <th>Prom. op.</th>
+                                <th>% Var. hs</th>
+                                <th>% Var. lavados</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in t.Semanas)
+                            {
+                                <tr>
+                                    <td class="num">@s.Semana</td>
+                                    <td class="num">@s.Lavados</td>
+                                    <td class="num">@FmtDur(s.TotalHoras)</td>
+                                    <td class="num">@FmtDur(s.PromedioHoras)</td>
+                                    <td class="num">@s.TotalOperarios</td>
+                                    <td class="num">@s.PromedioOperarios.ToString("0.0", Es)</td>
+                                    <td class="num">@FmtVar(s.VarHoras)</td>
+                                    <td class="num">@FmtVar(s.VarLavados)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-AR");
+
+    private string tipoSel = "Camion";
+    private DateOnly? desde;
+    private DateOnly? hasta;
+
+    private List<Lavado> lavados = new();
+    private List<MetricasTurno> metricas = new();
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    private TipoLavado? TipoSeleccion() => tipoSel switch
+    {
+        "Camion" => TipoLavado.Camion,
+        "Hielo" => TipoLavado.Hielo,
+        _ => null,
+    };
+
+    private async Task Cargar()
+    {
+        lavados = await Rep.ObtenerAsync(TipoSeleccion(), desde, hasta);
+        metricas = Rep.CalcularMetricas(lavados);
+    }
+
+    private async Task Limpiar()
+    {
+        desde = null;
+        hasta = null;
+        await Cargar();
+    }
+
+    private async Task Exportar()
+    {
+        var bytes = Rep.GenerarExcel(lavados, metricas, TipoSeleccion());
+        var b64 = Convert.ToBase64String(bytes);
+        var nombre = $"reporte-lavados-{DateTime.Now:yyyyMMdd-HHmm}.xlsx";
+        await JS.InvokeVoidAsync("descargarArchivo", nombre, b64,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    }
+
+    private static string FmtDur(TimeSpan t) => $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}";
+    private static string FmtVar(double? v) => v.HasValue ? v.Value.ToString("P1", Es) : "—";
+}

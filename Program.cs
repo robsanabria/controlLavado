@@ -16,6 +16,7 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlServer(connectionString));
 
 builder.Services.AddScoped<LavadoService>();
+builder.Services.AddScoped<ReporteService>();
 
 var app = builder.Build();
 
