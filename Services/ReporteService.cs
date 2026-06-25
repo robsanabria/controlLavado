@@ -18,6 +18,10 @@ public record MetricaSemana(
 
 public record MetricasTurno(string Turno, List<MetricaSemana> Semanas);
 
+public record HorasOperario(string Turno, string Operario, TipoOperario Tipo, Dictionary<int, TimeSpan> PorSemana, TimeSpan Total);
+
+public record HorasReporte(List<int> Semanas, List<HorasOperario> Filas);
+
 public class ReporteService
 {
     private readonly IDbContextFactory<AppDbContext> _factory;
@@ -82,17 +86,83 @@ public class ReporteService
         return resultado;
     }
 
+    /// <summary>
+    /// Horas trabajadas por operario y semana, agrupadas por turno (réplica de la "Hoja 4").
+    /// A cada operario presente en un lavado se le imputa la duración total de ese lavado.
+    /// </summary>
+    public HorasReporte CalcularHorasPorOperario(List<Lavado> lavados)
+    {
+        var semanas = lavados.Select(l => l.Semana).Distinct().OrderBy(x => x).ToList();
+        var acum = new Dictionary<(string Turno, string Operario), (TipoOperario Tipo, Dictionary<int, TimeSpan> Sem)>();
+
+        foreach (var l in lavados)
+        {
+            var dur = l.TiempoTotal ?? TimeSpan.Zero;
+            foreach (var o in l.Operarios)
+            {
+                var key = (l.Turno, o.Nombre);
+                if (!acum.TryGetValue(key, out var v))
+                {
+                    v = (o.Tipo, new Dictionary<int, TimeSpan>());
+                    acum[key] = v;
+                }
+                v.Sem.TryGetValue(l.Semana, out var cur);
+                v.Sem[l.Semana] = cur + dur;
+            }
+        }
+
+        var filas = acum
+            .Select(kv => new HorasOperario(
+                kv.Key.Turno, kv.Key.Operario, kv.Value.Tipo, kv.Value.Sem,
+                kv.Value.Sem.Values.Aggregate(TimeSpan.Zero, (a, b) => a + b)))
+            .OrderBy(f => f.Turno).ThenBy(f => f.Operario)
+            .ToList();
+
+        return new HorasReporte(semanas, filas);
+    }
+
     // ---------- Excel ----------
 
     public byte[] GenerarExcel(List<Lavado> lavados, List<MetricasTurno> metricas, TipoLavado? tipo)
     {
         using var wb = new XLWorkbook();
         EscribirMetricas(wb.AddWorksheet("Métricas"), metricas);
+        EscribirHoras(wb.AddWorksheet("Horas por operario"), CalcularHorasPorOperario(lavados));
         EscribirDetalle(wb.AddWorksheet("Detalle"), lavados, tipo);
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return ms.ToArray();
+    }
+
+    private static void EscribirHoras(IXLWorksheet ws, HorasReporte rep)
+    {
+        ws.Cell(1, 1).Value = "Turno";
+        ws.Cell(1, 2).Value = "Operario";
+        ws.Cell(1, 3).Value = "Tipo";
+        int col = 4;
+        foreach (var sem in rep.Semanas)
+            ws.Cell(1, col++).Value = $"Sem {sem}";
+        ws.Cell(1, col).Value = "Total";
+        ws.Range(1, 1, 1, col).Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.LightGray);
+
+        int row = 2;
+        foreach (var f in rep.Filas)
+        {
+            ws.Cell(row, 1).Value = f.Turno;
+            ws.Cell(row, 2).Value = f.Operario;
+            ws.Cell(row, 3).Value = f.Tipo.ToString();
+            col = 4;
+            foreach (var sem in rep.Semanas)
+            {
+                f.PorSemana.TryGetValue(sem, out var hs);
+                ws.Cell(row, col++).Value = FmtDur(hs);
+            }
+            ws.Cell(row, col).Value = FmtDur(f.Total);
+            row++;
+        }
+        ws.SheetView.FreezeRows(1);
+        ws.Columns().AdjustToContents();
     }
 
     private static void EscribirMetricas(IXLWorksheet ws, List<MetricasTurno> metricas)

@@ -81,6 +81,48 @@
                 </div>
             </section>
         }
+
+        <section class="card">
+            <h2>Horas por operario</h2>
+            @if (horas.Filas.Count == 0)
+            {
+                <p class="muted">Sin operarios en el rango.</p>
+            }
+            else
+            {
+                <div class="tabla-scroll">
+                    <table class="grilla">
+                        <thead>
+                            <tr>
+                                <th>Turno</th>
+                                <th>Operario</th>
+                                <th>Tipo</th>
+                                @foreach (var sem in horas.Semanas)
+                                {
+                                    <th>Sem @sem</th>
+                                }
+                                <th>Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var f in horas.Filas)
+                            {
+                                <tr>
+                                    <td>@f.Turno</td>
+                                    <td>@f.Operario</td>
+                                    <td>@f.Tipo</td>
+                                    @foreach (var sem in horas.Semanas)
+                                    {
+                                        <td class="num">@FmtDur(f.PorSemana.TryGetValue(sem, out var hs) ? hs : TimeSpan.Zero)</td>
+                                    }
+                                    <td class="num"><b>@FmtDur(f.Total)</b></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
     }
 </div>
 
@@ -93,6 +135,7 @@
 
     private List<Lavado> lavados = new();
     private List<MetricasTurno> metricas = new();
+    private HorasReporte horas = new(new(), new());
 
     protected override async Task OnInitializedAsync() => await Cargar();
 
@@ -107,6 +150,7 @@
     {
         lavados = await Rep.ObtenerAsync(TipoSeleccion(), desde, hasta);
         metricas = Rep.CalcularMetricas(lavados);
+        horas = Rep.CalcularHorasPorOperario(lavados);
     }
 
     private async Task Limpiar()
