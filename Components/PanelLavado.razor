@@ -62,7 +62,7 @@
             }
 
             <label>
-                <span>Operarios</span>
+                <span>Operarios <small class="muted">(turno @TurnoActualNombre)</small></span>
                 <input list="ops-nuevo" @key="@($"opnew-{comboKey}")" @onchange="e => AgregarOperario(form, e.Value?.ToString())"
                        placeholder="Escribí y elegí un operario…" autocomplete="off" />
                 <datalist id="ops-nuevo">
@@ -357,16 +357,35 @@
     private IEnumerable<string> DarsenasDisponiblesEdit =>
         Catalogo.Darsenas.Where(d => !dispEdit.DarsenasOcupadas.Contains(d));
 
+    // Turno actual según la hora del sistema (Mañana 06–18, Tarde/Noche 18–06).
+    private bool EsTurnoMananaAhora => Turnos.EsManana(DateTime.Now);
+    private string TurnoActualNombre => EsTurnoMananaAhora ? "Mañana" : "Tarde/Noche";
+
+    // Un operario "entra" en el turno actual si su turno asignado coincide.
+    // Sin turno asignado => no se valida (se permite).
+    private bool OperarioEnTurno(Operario o)
+        => string.IsNullOrEmpty(o.Turno)
+           || string.Equals(o.Turno, Turnos.Mañana, StringComparison.OrdinalIgnoreCase) == EsTurnoMananaAhora;
+
     private IEnumerable<Operario> OperariosDisponibles(FormModel m, Disponibilidad d) =>
-        operarios.Where(o => !d.OperariosOcupados.Contains(o.NombreCompleto) && !m.Operarios.Contains(o.NombreCompleto));
+        operarios.Where(o => OperarioEnTurno(o)
+            && !d.OperariosOcupados.Contains(o.NombreCompleto) && !m.Operarios.Contains(o.NombreCompleto));
 
     private void AgregarOperario(FormModel m, string? nombre)
     {
         // Solo agrega si lo tipeado/elegido coincide con un operario real del listado.
         var match = operarios.FirstOrDefault(o => o.Activo &&
             string.Equals(o.NombreCompleto, nombre?.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (match is not null && !m.Operarios.Contains(match.NombreCompleto))
-            m.Operarios.Add(match.NombreCompleto);
+        if (match is not null)
+        {
+            if (!OperarioEnTurno(match))
+                error = $"{match.NombreCompleto} es del turno {match.Turno}; ahora es turno {TurnoActualNombre}.";
+            else if (!m.Operarios.Contains(match.NombreCompleto))
+            {
+                m.Operarios.Add(match.NombreCompleto);
+                error = null;
+            }
+        }
         comboKey++; // recrea el input para que vuelva a quedar vacío
     }
 

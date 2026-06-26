@@ -38,12 +38,15 @@ public static class Turnos
     public const string Noche = "Noche";
 
     /// <summary>
-    /// Mañana: 06:00–18:59. Tarde: 19:00–05:59 (incluye la madrugada).
+    /// Mañana: 06:00–17:59. Tarde/Noche: 18:00–05:59 (incluye la madrugada).
     /// Operación de dos turnos: todo lo que no es Mañana es Tarde.
     /// </summary>
     public static string DesdeHora(DateTime hora)
     {
         var h = hora.Hour;
-        return (h >= 6 && h <= 18) ? Mañana : Tarde;
+        return (h >= 6 && h < 18) ? Mañana : Tarde;
     }
+
+    /// <summary>True si la hora dada cae en el turno Mañana (06:00–17:59).</summary>
+    public static bool EsManana(DateTime hora) => hora.Hour >= 6 && hora.Hour < 18;
 }
