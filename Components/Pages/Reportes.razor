@@ -7,8 +7,8 @@
 <PageTitle>Reportes</PageTitle>
 
 <header class="page-head">
-    <h1>Reportes</h1>
-    <p>Métricas semanales por turno y exportación a Excel</p>
+    <h1>Reportes <span class="info" tabindex="0" data-tip="@TipGeneral">i</span></h1>
+    <p>Métricas semanales por turno y exportación a Excel. Pasá el mouse por la <b>i</b> de cada reporte para ver qué calcula.</p>
 </header>
 
 <div class="panel">
@@ -49,7 +49,7 @@
         @foreach (var t in metricas)
         {
             <section class="card">
-                <h2>Turno @t.Turno</h2>
+                <h2>Turno @t.Turno <span class="info" tabindex="0" data-tip="@TipMetricas">i</span></h2>
                 <div class="tabla-scroll">
                     <table class="grilla">
                         <thead>
@@ -85,7 +85,7 @@
         }
 
         <section class="card">
-            <h2>Horas por operario</h2>
+            <h2>Horas por operario <span class="info" tabindex="0" data-tip="@TipHoras">i</span></h2>
             @if (horas.Filas.Count == 0)
             {
                 <p class="muted">Sin operarios en el rango.</p>
@@ -129,7 +129,7 @@
         </section>
 
         <section class="card">
-            <h2>Resumen por operario</h2>
+            <h2>Resumen por operario <span class="info" tabindex="0" data-tip="@TipResumen">i</span></h2>
             @if (resumen.Count == 0)
             {
                 <p class="muted">Sin datos.</p>
@@ -164,7 +164,7 @@
         </section>
 
         <section class="card">
-            <h2>Resumen por mes</h2>
+            <h2>Resumen por mes <span class="info" tabindex="0" data-tip="@TipResumenMes">i</span></h2>
             @if (resumenMes.Count == 0)
             {
                 <p class="muted">Sin datos.</p>
@@ -202,6 +202,40 @@
 
 @code {
     private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-AR");
+
+    // Textos de ayuda (tooltips) de cada reporte.
+    private const string TipGeneral =
+        "Todos los reportes usan SOLO lavados finalizados, filtrados por circuito y rango de fechas.\n\n" +
+        "• Tiempo total: Camión = Desatraco − Atraco; Hielo/Hiel/Varias = Fin − Inicio lavado.\n" +
+        "• Turno: Mañana 06:00–18:59, Tarde el resto.\n" +
+        "• A cada operario presente en un lavado se le imputan las horas TOTALES de ese lavado " +
+        "(si 2 personas lavan un camión de 40 min, cada una suma 40).";
+
+    private const string TipMetricas =
+        "Agrupa los lavados por turno y semana (ISO).\n\n" +
+        "• Lavados: cantidad de la semana.\n" +
+        "• Total hs: suma de los tiempos totales.\n" +
+        "• Prom. hs: Total hs ÷ Lavados.\n" +
+        "• Operarios: suma de operarios usados; Prom. op.: ÷ Lavados.\n" +
+        "• % Var.: variación contra la semana ANTERIOR (N−1) si tiene datos: (N − N−1) ÷ N−1. Si no hay semana previa, muestra “—”.";
+
+    private const string TipHoras =
+        "Horas trabajadas por cada operario, por semana.\n\n" +
+        "• Cada celda de semana = suma de los tiempos totales de los lavados en que participó esa semana.\n" +
+        "• Días trab.: días distintos en que participó.\n" +
+        "• Total hs: suma de todas las semanas del rango.";
+
+    private const string TipResumen =
+        "Una fila por operario, sobre todo el rango filtrado.\n\n" +
+        "• Camiones: lavados de tipo Camión en que participó.\n" +
+        "• Lavados: total de lavados (todos los circuitos).\n" +
+        "• Días trab.: días distintos.\n" +
+        "• Hs trabajadas: suma de los tiempos totales.\n" +
+        "• Prom. lavado: Hs trabajadas ÷ Lavados.";
+
+    private const string TipResumenMes =
+        "Igual que “Resumen por operario”, pero agrupado por mes (AAAA-MM).\n\n" +
+        "Una fila por operario y por mes, con sus camiones, lavados, días, horas y promedio de lavado.";
 
     private string tipoSel = "Camion";
     private DateOnly? desde;
