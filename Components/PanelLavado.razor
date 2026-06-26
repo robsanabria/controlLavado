@@ -12,13 +12,13 @@
             {
                 <label>
                     <span>Patente de unidad</span>
-                    <select @bind="form.Patente">
-                        <option value="">— elegir —</option>
+                    <input list="patentes-list" @bind="form.Patente" placeholder="Escribí o elegí la patente…" autocomplete="off" />
+                    <datalist id="patentes-list">
                         @foreach (var p in PatentesDisponibles)
                         {
-                            <option value="@p">@p</option>
+                            <option value="@p" />
                         }
-                    </select>
+                    </datalist>
                 </label>
 
                 <label>
@@ -63,13 +63,14 @@
 
             <label>
                 <span>Operarios</span>
-                <select @key="@($"opnew-{comboKey}")" @onchange="e => AgregarOperario(form, e.Value?.ToString())">
-                    <option value="">+ agregar operario…</option>
+                <input list="ops-nuevo" @key="@($"opnew-{comboKey}")" @onchange="e => AgregarOperario(form, e.Value?.ToString())"
+                       placeholder="Escribí y elegí un operario…" autocomplete="off" />
+                <datalist id="ops-nuevo">
                     @foreach (var op in OperariosDisponibles(form, disp))
                     {
-                        <option value="@op.NombreCompleto">@op.NombreCompleto (@op.Tipo)</option>
+                        <option value="@op.NombreCompleto">@op.Tipo</option>
                     }
-                </select>
+                </datalist>
             </label>
         </div>
 
@@ -172,13 +173,14 @@
                                     <label><span>Pallets</span><input type="number" min="0" @bind="edit.Pallets" /></label>
                                 </div>
                                 <label><span>Operarios</span>
-                                    <select @key="@($"opedit-{comboKey}")" @onchange="e => AgregarOperario(edit, e.Value?.ToString())">
-                                        <option value="">+ agregar operario…</option>
+                                    <input list="ops-edit" @key="@($"opedit-{comboKey}")" @onchange="e => AgregarOperario(edit, e.Value?.ToString())"
+                                           placeholder="Escribí y elegí un operario…" autocomplete="off" />
+                                    <datalist id="ops-edit">
                                         @foreach (var op in OperariosDisponibles(edit, dispEdit))
                                         {
-                                            <option value="@op.NombreCompleto">@op.NombreCompleto (@op.Tipo)</option>
+                                            <option value="@op.NombreCompleto">@op.Tipo</option>
                                         }
-                                    </select>
+                                    </datalist>
                                 </label>
                                 @if (edit.Operarios.Count > 0)
                                 {
@@ -360,9 +362,12 @@
 
     private void AgregarOperario(FormModel m, string? nombre)
     {
-        if (!string.IsNullOrEmpty(nombre) && !m.Operarios.Contains(nombre))
-            m.Operarios.Add(nombre);
-        comboKey++; // recrea el <select> para que vuelva a "+ agregar operario…"
+        // Solo agrega si lo tipeado/elegido coincide con un operario real del listado.
+        var match = operarios.FirstOrDefault(o => o.Activo &&
+            string.Equals(o.NombreCompleto, nombre?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (match is not null && !m.Operarios.Contains(match.NombreCompleto))
+            m.Operarios.Add(match.NombreCompleto);
+        comboKey++; // recrea el input para que vuelva a quedar vacío
     }
 
     private async Task Iniciar()
@@ -379,6 +384,18 @@
         {
             error = "Faltan completar: " + string.Join(", ", faltan) + ".";
             return;
+        }
+
+        // La patente tipeada tiene que existir en el listado.
+        if (EsCamion)
+        {
+            var pat = patentes.FirstOrDefault(p => string.Equals(p.Codigo, form.Patente.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (pat is null)
+            {
+                error = $"La patente «{form.Patente}» no está en el listado. Elegila de las sugerencias o cargala en Configuración.";
+                return;
+            }
+            form.Patente = pat.Codigo; // normaliza a la versión del catálogo
         }
 
         // Inserción con revalidación server-side (anti doble-asignación).
