@@ -191,7 +191,8 @@ public class ImportacionService
             cAtr = C("Hora inicio Atraco"), cIniLav = C("Hora inicio de lavado"),
             cFinLav = C("Hora fin de lavado"), cDes = C("Hora de desatraco"),
             cInc = C("Incidencias genrales"), cMarca = C("Marca temporal"),
-            cOffal = C("N° Operario Offal"), cAgencia = C("N° Operario Agencia");
+            cOffal = C("N° Operario Offal"), cAgencia = C("N° Operario Agencia"),
+            cTurno = C("Turno");
 
         if (cFecha < 0 || cPat < 0 || cAtr < 0)
             return new(false, 0, 0, 0, 0, 0, "No se encontraron las columnas esperadas (Fecha / Patente / Hora inicio Atraco).");
@@ -199,8 +200,9 @@ public class ImportacionService
         await using var db = await _factory.CreateDbContextAsync();
         var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
 
-        // ---- Pasada 1: deducir el tipo de cada operario y juntar patentes/operarios distintos ----
+        // ---- Pasada 1: deducir el tipo y el turno de cada operario y juntar patentes/operarios ----
         var votos = new Dictionary<string, (int Offal, int Contrato)>(StringComparer.OrdinalIgnoreCase);
+        var turnoVotos = new Dictionary<string, (int Manana, int Noche)>(StringComparer.OrdinalIgnoreCase);
         var patentesArchivo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var nombresArchivo = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -212,6 +214,16 @@ public class ImportacionService
 
             var nombres = SepararNombres(cOps > 0 ? row.Cell(cOps).GetString() : "");
             foreach (var n in nombres) nombresArchivo.Add(n);
+
+            // Turno de la fila (Mañana / Noche) para asignar el turno de cada operario.
+            var turnoTxt = (cTurno > 0 ? row.Cell(cTurno).GetString() : "").Trim().ToLowerInvariant();
+            int idxTurno = turnoTxt.Contains("noche") ? 1 : (turnoTxt.Contains("mañana") || turnoTxt.Contains("manana")) ? 0 : -1;
+            if (idxTurno >= 0)
+                foreach (var n in nombres)
+                {
+                    turnoVotos.TryGetValue(n, out var tv);
+                    turnoVotos[n] = idxTurno == 0 ? (tv.Manana + 1, tv.Noche) : (tv.Manana, tv.Noche + 1);
+                }
 
             int nOffal = (int)(LeerNumero(row.Cell(cOffal)) ?? 0);
             int nAgencia = (int)(LeerNumero(row.Cell(cAgencia)) ?? 0);
@@ -242,16 +254,30 @@ public class ImportacionService
             return tipoCat.TryGetValue(nombre, out var t) ? t : TipoOperario.Contrato;
         }
 
-        // ---- Completar catálogos (sin tocar los existentes) ----
+        // Turno final por operario: mayoría de la columna "Turno" del archivo (Mañana / Noche).
+        string? TurnoFinal(string nombre)
+        {
+            if (turnoVotos.TryGetValue(nombre, out var tv) && (tv.Manana > 0 || tv.Noche > 0))
+                return tv.Manana >= tv.Noche ? Turnos.Mañana : Turnos.Noche;
+            return null;
+        }
+
+        // ---- Completar catálogos (sin tocar los existentes, salvo el turno si está vacío) ----
         int opsNuevos = 0, patsNuevas = 0;
         foreach (var n in nombresArchivo.Where(n => !nombresCat.Contains(n)))
         {
             var idx = n.IndexOf(' ');
             var apellido = idx < 0 ? n : n[..idx];
             var nombre = idx < 0 ? "" : n[(idx + 1)..].Trim();
-            db.Operarios.Add(new Operario { Apellido = apellido, Nombre = nombre, Tipo = TipoFinal(n) });
+            db.Operarios.Add(new Operario { Apellido = apellido, Nombre = nombre, Tipo = TipoFinal(n), Turno = TurnoFinal(n) });
             nombresCat.Add(n);
             opsNuevos++;
+        }
+        // Completar el turno de los operarios que ya existían y todavía no lo tienen.
+        foreach (var o in opsCat.Where(o => string.IsNullOrEmpty(o.Turno)))
+        {
+            var t = TurnoFinal(o.NombreCompleto);
+            if (t is not null) { o.Turno = t; db.Operarios.Update(o); }
         }
         foreach (var p in patentesArchivo.Where(p => !patentesCat.Contains(p)))
         {

@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using System.Globalization
 @inject ReporteService Rep
+@inject CatalogoService Cat
 @inject IJSRuntime JS
 
 <PageTitle>Reportes</PageTitle>
@@ -244,6 +245,7 @@
     private HorasReporte horas = new(new(), new());
     private List<OperarioResumen> resumen = new();
     private List<OperarioMesResumen> resumenMes = new();
+    private Dictionary<string, string?> turnoOperarios = new();
 
     protected override async Task OnInitializedAsync() => await Cargar();
 
@@ -258,9 +260,14 @@
 
     private async Task Cargar()
     {
+        // Mapa operario -> turno asignado (para agrupar "Horas por operario").
+        turnoOperarios = new(StringComparer.OrdinalIgnoreCase);
+        foreach (var o in await Cat.OperariosAsync())
+            turnoOperarios[o.NombreCompleto] = o.Turno;
+
         lavados = await Rep.ObtenerAsync(TipoSeleccion(), desde, hasta);
         metricas = Rep.CalcularMetricas(lavados);
-        horas = Rep.CalcularHorasPorOperario(lavados);
+        horas = Rep.CalcularHorasPorOperario(lavados, turnoOperarios);
         resumen = Rep.ResumenPorOperario(lavados);
         resumenMes = Rep.ResumenPorMes(lavados);
     }
@@ -274,7 +281,7 @@
 
     private async Task Exportar()
     {
-        var bytes = Rep.GenerarExcel(lavados, metricas, TipoSeleccion());
+        var bytes = Rep.GenerarExcel(lavados, metricas, TipoSeleccion(), turnoOperarios);
         var b64 = Convert.ToBase64String(bytes);
         var nombre = $"reporte-lavados-{DateTime.Now:yyyyMMdd-HHmm}.xlsx";
         await JS.InvokeVoidAsync("descargarArchivo", nombre, b64,

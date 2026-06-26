@@ -19,6 +19,10 @@ public class Operario
 
     public TipoOperario Tipo { get; set; }
 
+    /// <summary>Turno asignado del operario (Mañana / Tarde / Noche).</summary>
+    [MaxLength(10)]
+    public string? Turno { get; set; }
+
     public bool Activo { get; set; } = true;
 
     /// <summary>Como se muestra y se guarda en los lavados: "APELLIDO Nombre".</summary>

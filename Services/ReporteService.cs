@@ -101,7 +101,7 @@ public class ReporteService
     /// Horas trabajadas por operario y semana, agrupadas por turno (réplica de la "Hoja 4").
     /// A cada operario presente en un lavado se le imputa la duración total de ese lavado.
     /// </summary>
-    public HorasReporte CalcularHorasPorOperario(List<Lavado> lavados)
+    public HorasReporte CalcularHorasPorOperario(List<Lavado> lavados, IReadOnlyDictionary<string, string?> turnoPorOperario)
     {
         var semanas = lavados.Select(l => l.Semana).Distinct().OrderBy(x => x).ToList();
         var acum = new Dictionary<(string Turno, string Operario), (TipoOperario Tipo, Dictionary<int, TimeSpan> Sem, HashSet<DateOnly> Dias)>();
@@ -111,7 +111,9 @@ public class ReporteService
             var dur = l.TiempoTotal ?? TimeSpan.Zero;
             foreach (var o in l.Operarios)
             {
-                var key = (l.Turno, o.Nombre);
+                // El turno es el ASIGNADO al operario (no la hora del lavado).
+                var turnoOp = (turnoPorOperario.TryGetValue(o.Nombre, out var t) && !string.IsNullOrEmpty(t)) ? t! : "(sin turno)";
+                var key = (turnoOp, o.Nombre);
                 if (!acum.TryGetValue(key, out var v))
                 {
                     v = (o.Tipo, new Dictionary<int, TimeSpan>(), new HashSet<DateOnly>());
@@ -123,11 +125,12 @@ public class ReporteService
             }
         }
 
+        int Rank(string turno) => Array.IndexOf(OrdenTurnos, turno) is var i && i >= 0 ? i : 99;
         var filas = acum
             .Select(kv => new HorasOperario(
                 kv.Key.Turno, kv.Key.Operario, kv.Value.Tipo, kv.Value.Sem, kv.Value.Dias.Count,
                 kv.Value.Sem.Values.Aggregate(TimeSpan.Zero, (a, b) => a + b)))
-            .OrderBy(f => f.Turno).ThenBy(f => f.Operario)
+            .OrderBy(f => Rank(f.Turno)).ThenBy(f => f.Operario)
             .ToList();
 
         return new HorasReporte(semanas, filas);
@@ -180,11 +183,12 @@ public class ReporteService
 
     // ---------- Excel ----------
 
-    public byte[] GenerarExcel(List<Lavado> lavados, List<MetricasTurno> metricas, TipoLavado? tipo)
+    public byte[] GenerarExcel(List<Lavado> lavados, List<MetricasTurno> metricas, TipoLavado? tipo,
+        IReadOnlyDictionary<string, string?> turnoPorOperario)
     {
         using var wb = new XLWorkbook();
         EscribirMetricas(wb.AddWorksheet("Métricas"), metricas);
-        EscribirHoras(wb.AddWorksheet("Horas por operario"), CalcularHorasPorOperario(lavados));
+        EscribirHoras(wb.AddWorksheet("Horas por operario"), CalcularHorasPorOperario(lavados, turnoPorOperario));
         EscribirResumenOperario(wb.AddWorksheet("Resumen operario"), ResumenPorOperario(lavados));
         EscribirResumenMes(wb.AddWorksheet("Resumen por mes"), ResumenPorMes(lavados));
         EscribirDetalle(wb.AddWorksheet("Detalle"), lavados, tipo);

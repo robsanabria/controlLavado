@@ -73,6 +73,14 @@
                     <option value="Contrato">Contrato</option>
                 </select>
             </label>
+            <label><span>Turno</span>
+                <select @bind="opEdit.Turno">
+                    <option value="">—</option>
+                    <option value="Mañana">Mañana</option>
+                    <option value="Tarde">Tarde</option>
+                    <option value="Noche">Noche</option>
+                </select>
+            </label>
         </div>
         @if (errorOp is not null) { <p class="error">@errorOp</p> }
         <div class="curso-actions">
@@ -81,12 +89,12 @@
         </div>
         <div class="tabla-scroll" style="margin-top:14px">
             <table class="grilla">
-                <thead><tr><th>Apellido</th><th>Nombre</th><th>DNI</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
+                <thead><tr><th>Apellido</th><th>Nombre</th><th>DNI</th><th>Tipo</th><th>Turno</th><th>Estado</th><th></th></tr></thead>
                 <tbody>
                     @foreach (var o in ops)
                     {
                         <tr style="@(o.Activo ? "" : "opacity:.5")">
-                            <td>@o.Apellido</td><td>@o.Nombre</td><td>@o.Dni</td><td>@o.Tipo</td>
+                            <td>@o.Apellido</td><td>@o.Nombre</td><td>@o.Dni</td><td>@o.Tipo</td><td>@o.Turno</td>
                             <td>@(o.Activo ? "Activo" : "Baja")</td>
                             <td class="acciones">
                                 <button class="btn btn-ghost" @onclick="() => EditarOp(o)">Editar</button>
@@ -312,7 +320,7 @@
     }
 
     private void EditarOp(Operario o) =>
-        opEdit = new Operario { Id = o.Id, Apellido = o.Apellido, Nombre = o.Nombre, Dni = o.Dni, Tipo = o.Tipo, Activo = o.Activo };
+        opEdit = new Operario { Id = o.Id, Apellido = o.Apellido, Nombre = o.Nombre, Dni = o.Dni, Tipo = o.Tipo, Turno = o.Turno, Activo = o.Activo };
 
     private async Task GuardarOp()
     {
