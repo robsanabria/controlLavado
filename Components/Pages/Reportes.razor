@@ -103,7 +103,8 @@
                                 {
                                     <th>Sem @sem</th>
                                 }
-                                <th>Total</th>
+                                <th>Días trab.</th>
+                                <th>Total hs</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -117,7 +118,78 @@
                                     {
                                         <td class="num">@FmtDur(f.PorSemana.TryGetValue(sem, out var hs) ? hs : TimeSpan.Zero)</td>
                                     }
+                                    <td class="num">@f.DiasTrabajados</td>
                                     <td class="num"><b>@FmtDur(f.Total)</b></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="card">
+            <h2>Resumen por operario</h2>
+            @if (resumen.Count == 0)
+            {
+                <p class="muted">Sin datos.</p>
+            }
+            else
+            {
+                <div class="tabla-scroll">
+                    <table class="grilla">
+                        <thead>
+                            <tr>
+                                <th>Operario</th><th>Tipo</th><th>Camiones</th><th>Lavados</th>
+                                <th>Días trab.</th><th>Hs trabajadas</th><th>Prom. lavado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in resumen)
+                            {
+                                <tr>
+                                    <td>@r.Operario</td>
+                                    <td>@r.Tipo</td>
+                                    <td class="num">@r.Camiones</td>
+                                    <td class="num">@r.Lavados</td>
+                                    <td class="num">@r.DiasTrabajados</td>
+                                    <td class="num">@FmtDur(r.Horas)</td>
+                                    <td class="num">@FmtDur(r.Promedio)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="card">
+            <h2>Resumen por mes</h2>
+            @if (resumenMes.Count == 0)
+            {
+                <p class="muted">Sin datos.</p>
+            }
+            else
+            {
+                <div class="tabla-scroll">
+                    <table class="grilla">
+                        <thead>
+                            <tr>
+                                <th>Mes</th><th>Operario</th><th>Camiones</th><th>Lavados</th>
+                                <th>Días trab.</th><th>Hs trabajadas</th><th>Prom. lavado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in resumenMes)
+                            {
+                                <tr>
+                                    <td>@r.Mes</td>
+                                    <td>@r.Operario</td>
+                                    <td class="num">@r.Camiones</td>
+                                    <td class="num">@r.Lavados</td>
+                                    <td class="num">@r.DiasTrabajados</td>
+                                    <td class="num">@FmtDur(r.Horas)</td>
+                                    <td class="num">@FmtDur(r.Promedio)</td>
                                 </tr>
                             }
                         </tbody>
@@ -138,6 +210,8 @@
     private List<Lavado> lavados = new();
     private List<MetricasTurno> metricas = new();
     private HorasReporte horas = new(new(), new());
+    private List<OperarioResumen> resumen = new();
+    private List<OperarioMesResumen> resumenMes = new();
 
     protected override async Task OnInitializedAsync() => await Cargar();
 
@@ -155,6 +229,8 @@
         lavados = await Rep.ObtenerAsync(TipoSeleccion(), desde, hasta);
         metricas = Rep.CalcularMetricas(lavados);
         horas = Rep.CalcularHorasPorOperario(lavados);
+        resumen = Rep.ResumenPorOperario(lavados);
+        resumenMes = Rep.ResumenPorMes(lavados);
     }
 
     private async Task Limpiar()

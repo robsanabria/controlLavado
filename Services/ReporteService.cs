@@ -18,9 +18,15 @@ public record MetricaSemana(
 
 public record MetricasTurno(string Turno, List<MetricaSemana> Semanas);
 
-public record HorasOperario(string Turno, string Operario, TipoOperario Tipo, Dictionary<int, TimeSpan> PorSemana, TimeSpan Total);
+public record HorasOperario(string Turno, string Operario, TipoOperario Tipo, Dictionary<int, TimeSpan> PorSemana, int DiasTrabajados, TimeSpan Total);
 
 public record HorasReporte(List<int> Semanas, List<HorasOperario> Filas);
+
+/// <summary>Resumen por operario sobre el rango filtrado.</summary>
+public record OperarioResumen(string Operario, TipoOperario Tipo, int Camiones, int Lavados, int DiasTrabajados, TimeSpan Horas, TimeSpan Promedio);
+
+/// <summary>Resumen por operario y mes.</summary>
+public record OperarioMesResumen(string Mes, string Operario, int Camiones, int Lavados, int DiasTrabajados, TimeSpan Horas, TimeSpan Promedio);
 
 public class ReporteService
 {
@@ -98,7 +104,7 @@ public class ReporteService
     public HorasReporte CalcularHorasPorOperario(List<Lavado> lavados)
     {
         var semanas = lavados.Select(l => l.Semana).Distinct().OrderBy(x => x).ToList();
-        var acum = new Dictionary<(string Turno, string Operario), (TipoOperario Tipo, Dictionary<int, TimeSpan> Sem)>();
+        var acum = new Dictionary<(string Turno, string Operario), (TipoOperario Tipo, Dictionary<int, TimeSpan> Sem, HashSet<DateOnly> Dias)>();
 
         foreach (var l in lavados)
         {
@@ -108,22 +114,68 @@ public class ReporteService
                 var key = (l.Turno, o.Nombre);
                 if (!acum.TryGetValue(key, out var v))
                 {
-                    v = (o.Tipo, new Dictionary<int, TimeSpan>());
+                    v = (o.Tipo, new Dictionary<int, TimeSpan>(), new HashSet<DateOnly>());
                     acum[key] = v;
                 }
                 v.Sem.TryGetValue(l.Semana, out var cur);
                 v.Sem[l.Semana] = cur + dur;
+                v.Dias.Add(l.Fecha);
             }
         }
 
         var filas = acum
             .Select(kv => new HorasOperario(
-                kv.Key.Turno, kv.Key.Operario, kv.Value.Tipo, kv.Value.Sem,
+                kv.Key.Turno, kv.Key.Operario, kv.Value.Tipo, kv.Value.Sem, kv.Value.Dias.Count,
                 kv.Value.Sem.Values.Aggregate(TimeSpan.Zero, (a, b) => a + b)))
             .OrderBy(f => f.Turno).ThenBy(f => f.Operario)
             .ToList();
 
         return new HorasReporte(semanas, filas);
+    }
+
+    /// <summary>Resumen por operario sobre todo el rango filtrado.</summary>
+    public List<OperarioResumen> ResumenPorOperario(List<Lavado> lavados)
+    {
+        var porOp = AgruparPorOperario(lavados, l => "");
+        return porOp
+            .Select(kv => Construir(kv.Key.Op, kv.Value))
+            .OrderBy(r => r.Operario)
+            .Select(r => new OperarioResumen(r.Operario, r.Tipo, r.Camiones, r.Lavados, r.DiasTrabajados, r.Horas, r.Promedio))
+            .ToList();
+    }
+
+    /// <summary>Resumen por operario y mes.</summary>
+    public List<OperarioMesResumen> ResumenPorMes(List<Lavado> lavados)
+    {
+        var porOpMes = AgruparPorOperario(lavados, l => $"{l.Fecha.Year:0000}-{l.Fecha.Month:00}");
+        return porOpMes
+            .Select(kv => (kv.Key, R: Construir(kv.Key.Op, kv.Value)))
+            .OrderBy(x => x.Key.Clave).ThenBy(x => x.Key.Op)
+            .Select(x => new OperarioMesResumen(x.Key.Clave, x.R.Operario, x.R.Camiones, x.R.Lavados, x.R.DiasTrabajados, x.R.Horas, x.R.Promedio))
+            .ToList();
+    }
+
+    private static Dictionary<(string Clave, string Op), (TipoOperario Tipo, List<Lavado> Lavs)> AgruparPorOperario(
+        List<Lavado> lavados, Func<Lavado, string> clave)
+    {
+        var acc = new Dictionary<(string Clave, string Op), (TipoOperario Tipo, List<Lavado> Lavs)>();
+        foreach (var l in lavados)
+            foreach (var o in l.Operarios)
+            {
+                var key = (clave(l), o.Nombre);
+                if (!acc.TryGetValue(key, out var v)) { v = (o.Tipo, new List<Lavado>()); acc[key] = v; }
+                v.Lavs.Add(l);
+            }
+        return acc;
+    }
+
+    private static OperarioResumen Construir(string operario, (TipoOperario Tipo, List<Lavado> Lavs) v)
+    {
+        var horas = v.Lavs.Aggregate(TimeSpan.Zero, (a, l) => a + (l.TiempoTotal ?? TimeSpan.Zero));
+        var dias = v.Lavs.Select(l => l.Fecha).Distinct().Count();
+        var camiones = v.Lavs.Count(l => l.Tipo == TipoLavado.Camion);
+        var prom = v.Lavs.Count > 0 ? TimeSpan.FromSeconds(horas.TotalSeconds / v.Lavs.Count) : TimeSpan.Zero;
+        return new OperarioResumen(operario, v.Tipo, camiones, v.Lavs.Count, dias, horas, prom);
     }
 
     // ---------- Excel ----------
@@ -133,11 +185,59 @@ public class ReporteService
         using var wb = new XLWorkbook();
         EscribirMetricas(wb.AddWorksheet("Métricas"), metricas);
         EscribirHoras(wb.AddWorksheet("Horas por operario"), CalcularHorasPorOperario(lavados));
+        EscribirResumenOperario(wb.AddWorksheet("Resumen operario"), ResumenPorOperario(lavados));
+        EscribirResumenMes(wb.AddWorksheet("Resumen por mes"), ResumenPorMes(lavados));
         EscribirDetalle(wb.AddWorksheet("Detalle"), lavados, tipo);
 
         using var ms = new MemoryStream();
         wb.SaveAs(ms);
         return ms.ToArray();
+    }
+
+    private static void EscribirResumenOperario(IXLWorksheet ws, List<OperarioResumen> filas)
+    {
+        string[] h = { "Operario", "Tipo", "Camiones", "Lavados", "Días trab.", "Hs trabajadas", "Prom. lavado" };
+        for (int c = 0; c < h.Length; c++)
+            ws.Cell(1, c + 1).Value = h[c];
+        ws.Range(1, 1, 1, h.Length).Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.LightGray);
+
+        int row = 2;
+        foreach (var r in filas)
+        {
+            ws.Cell(row, 1).Value = r.Operario;
+            ws.Cell(row, 2).Value = r.Tipo.ToString();
+            ws.Cell(row, 3).Value = r.Camiones;
+            ws.Cell(row, 4).Value = r.Lavados;
+            ws.Cell(row, 5).Value = r.DiasTrabajados;
+            ws.Cell(row, 6).Value = FmtDur(r.Horas);
+            ws.Cell(row, 7).Value = FmtDur(r.Promedio);
+            row++;
+        }
+        ws.SheetView.FreezeRows(1);
+        ws.Columns().AdjustToContents();
+    }
+
+    private static void EscribirResumenMes(IXLWorksheet ws, List<OperarioMesResumen> filas)
+    {
+        string[] h = { "Mes", "Operario", "Camiones", "Lavados", "Días trab.", "Hs trabajadas", "Prom. lavado" };
+        for (int c = 0; c < h.Length; c++)
+            ws.Cell(1, c + 1).Value = h[c];
+        ws.Range(1, 1, 1, h.Length).Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.LightGray);
+
+        int row = 2;
+        foreach (var r in filas)
+        {
+            ws.Cell(row, 1).Value = r.Mes;
+            ws.Cell(row, 2).Value = r.Operario;
+            ws.Cell(row, 3).Value = r.Camiones;
+            ws.Cell(row, 4).Value = r.Lavados;
+            ws.Cell(row, 5).Value = r.DiasTrabajados;
+            ws.Cell(row, 6).Value = FmtDur(r.Horas);
+            ws.Cell(row, 7).Value = FmtDur(r.Promedio);
+            row++;
+        }
+        ws.SheetView.FreezeRows(1);
+        ws.Columns().AdjustToContents();
     }
 
     private static void EscribirHoras(IXLWorksheet ws, HorasReporte rep)
@@ -148,7 +248,8 @@ public class ReporteService
         int col = 4;
         foreach (var sem in rep.Semanas)
             ws.Cell(1, col++).Value = $"Sem {sem}";
-        ws.Cell(1, col).Value = "Total";
+        ws.Cell(1, col++).Value = "Días trab.";
+        ws.Cell(1, col).Value = "Total hs";
         ws.Range(1, 1, 1, col).Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.LightGray);
 
         int row = 2;
@@ -163,6 +264,7 @@ public class ReporteService
                 f.PorSemana.TryGetValue(sem, out var hs);
                 ws.Cell(row, col++).Value = FmtDur(hs);
             }
+            ws.Cell(row, col++).Value = f.DiasTrabajados;
             ws.Cell(row, col).Value = FmtDur(f.Total);
             row++;
         }
