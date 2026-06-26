@@ -11,6 +11,8 @@ namespace ControlLavados.Services;
 public record ImportacionResultado(bool Ok, int Importados, int Omitidos, int FilasLeidas,
     int OperariosNuevos, int PatentesNuevas, string? Error);
 
+public record ImportPatentesResultado(bool Ok, int Nuevas, int Actualizadas, int FilasLeidas, string? Error);
+
 /// <summary>
 /// Importa las respuestas del Forms ("Respuestas de formulario 1") como lavados
 /// de camión finalizados, para que aparezcan en la reportería.
@@ -36,6 +38,83 @@ public class ImportacionService
             return new(false, 0, 0, 0, 0, 0, ex.Message);
         }
     }
+
+    // ---------- Importación del maestro de patentes ----------
+
+    public async Task<ImportPatentesResultado> ImportarPatentesDesdeArchivoAsync(string ruta)
+    {
+        if (!File.Exists(ruta))
+            return new(false, 0, 0, 0, $"No se encontró el archivo: {ruta}");
+        try
+        {
+            using var fs = new FileStream(ruta, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return await ImportarPatentesAsync(fs);
+        }
+        catch (Exception ex)
+        {
+            return new(false, 0, 0, 0, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Importa un maestro de patentes con columnas Dominio/Patente, Modelo, Marca y Tipo Unidad.
+    /// Crea las nuevas y actualiza modelo/marca/tipo de las existentes.
+    /// </summary>
+    public async Task<ImportPatentesResultado> ImportarPatentesAsync(Stream xlsx)
+    {
+        using var limpio = LimpiarPaquete(xlsx);
+        using var wb = new XLWorkbook(limpio);
+        var ws = wb.Worksheets.FirstOrDefault();
+        if (ws is null) return new(false, 0, 0, 0, "El archivo no tiene hojas.");
+
+        var col = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cell in ws.Row(1).CellsUsed())
+            col[Norm(cell.GetString())] = cell.Address.ColumnNumber;
+        int C(params string[] claves) => claves.Select(k => col.TryGetValue(Norm(k), out var n) ? n : -1)
+            .FirstOrDefault(n => n > 0, -1);
+
+        int cDom = C("Dominio", "Patente", "Patente de Unidad"),
+            cMod = C("Modelo"), cMar = C("Marca"), cTipo = C("Tipo Unidad", "Tipo de unidad", "TipoUnidad");
+        if (cDom < 0)
+            return new(false, 0, 0, 0, "No se encontró la columna «Dominio» (o «Patente»).");
+
+        await using var db = await _factory.CreateDbContextAsync();
+        var existentes = (await db.Patentes.ToListAsync())
+            .ToDictionary(p => p.Codigo, p => p, StringComparer.OrdinalIgnoreCase);
+
+        int nuevas = 0, actualizadas = 0, leidas = 0;
+        var lastRow = ws.LastRowUsed()?.RowNumber() ?? 1;
+
+        for (int r = 2; r <= lastRow; r++)
+        {
+            var codigo = ws.Cell(r, cDom).GetString().Trim();
+            if (string.IsNullOrWhiteSpace(codigo)) continue;
+            leidas++;
+
+            string? modelo = cMod > 0 ? Vacio(ws.Cell(r, cMod).GetString()) : null;
+            string? marca = cMar > 0 ? Vacio(ws.Cell(r, cMar).GetString()) : null;
+            string? tipo = cTipo > 0 ? Vacio(ws.Cell(r, cTipo).GetString()) : null;
+
+            if (existentes.TryGetValue(codigo, out var p))
+            {
+                p.Modelo = modelo; p.Marca = marca; p.TipoUnidad = tipo;
+                db.Patentes.Update(p);
+                actualizadas++;
+            }
+            else
+            {
+                var nueva = new Patente { Codigo = codigo, Modelo = modelo, Marca = marca, TipoUnidad = tipo };
+                db.Patentes.Add(nueva);
+                existentes[codigo] = nueva;
+                nuevas++;
+            }
+        }
+
+        await db.SaveChangesAsync();
+        return new(true, nuevas, actualizadas, leidas, null);
+    }
+
+    private static string? Vacio(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     public async Task<ImportacionResultado> ImportarAsync(Stream xlsx)
     {

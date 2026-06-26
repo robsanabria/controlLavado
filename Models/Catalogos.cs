@@ -34,6 +34,15 @@ public class Patente
     [MaxLength(20)]
     public string Codigo { get; set; } = "";
 
+    [MaxLength(60)]
+    public string? Modelo { get; set; }
+
+    [MaxLength(60)]
+    public string? Marca { get; set; }
+
+    [MaxLength(40)]
+    public string? TipoUnidad { get; set; }
+
     public bool Activo { get; set; } = true;
 }
 

@@ -36,6 +36,30 @@
         }
     </section>
 
+    <!-- ===== IMPORTAR MAESTRO DE PATENTES ===== -->
+    <section class="card">
+        <h2>Importar maestro de patentes</h2>
+        <p class="muted">Lee un Excel con columnas Dominio, Modelo, Marca y Tipo Unidad. Crea las patentes nuevas y actualiza modelo/marca/tipo de las existentes.</p>
+        <div class="form-grid">
+            <label style="grid-column:1/-1"><span>Ruta del archivo (.xlsx) en el servidor</span>
+                <input @bind="rutaPatentes" placeholder="C:\...\Libro1.xlsx" />
+            </label>
+        </div>
+        <div class="curso-actions">
+            <button class="btn btn-primary" @onclick="ImportarPatentesRuta" disabled="@importandoPat">
+                @(importandoPat ? "Importando…" : "Importar desde ruta")
+            </button>
+            <label class="btn btn-ghost" style="cursor:pointer">
+                Subir archivo…
+                <InputFile OnChange="ImportarPatentesArchivo" accept=".xlsx" style="display:none" />
+            </label>
+        </div>
+        @if (resultadoPat is not null)
+        {
+            <p class="@(resultadoPatOk ? "muted" : "error")" style="margin-top:10px">@resultadoPat</p>
+        }
+    </section>
+
     <!-- ===== OPERARIOS ===== -->
     <section class="card">
         <h2>Operarios (@ops.Count)</h2>
@@ -80,6 +104,9 @@
         <h2>Patentes (@pats.Count)</h2>
         <div class="form-grid">
             <label><span>Código</span><input @bind="patEdit.Codigo" placeholder="Ej: AC356EI" /></label>
+            <label><span>Modelo</span><input @bind="patEdit.Modelo" /></label>
+            <label><span>Marca</span><input @bind="patEdit.Marca" /></label>
+            <label><span>Tipo Unidad</span><input @bind="patEdit.TipoUnidad" /></label>
         </div>
         @if (errorPat is not null) { <p class="error">@errorPat</p> }
         <div class="curso-actions">
@@ -88,14 +115,15 @@
         </div>
         <div class="tabla-scroll" style="margin-top:14px">
             <table class="grilla">
-                <thead><tr><th>Código</th><th>Estado</th><th></th></tr></thead>
+                <thead><tr><th>Código</th><th>Modelo</th><th>Marca</th><th>Tipo Unidad</th><th>Estado</th><th></th></tr></thead>
                 <tbody>
                     @foreach (var p in pats)
                     {
                         <tr style="@(p.Activo ? "" : "opacity:.5")">
-                            <td>@p.Codigo</td><td>@(p.Activo ? "Activo" : "Baja")</td>
+                            <td>@p.Codigo</td><td>@p.Modelo</td><td>@p.Marca</td><td>@p.TipoUnidad</td>
+                            <td>@(p.Activo ? "Activo" : "Baja")</td>
                             <td class="acciones">
-                                <button class="btn btn-ghost" @onclick="() => patEdit = new Patente { Id = p.Id, Codigo = p.Codigo, Activo = p.Activo }">Editar</button>
+                                <button class="btn btn-ghost" @onclick="() => patEdit = new Patente { Id = p.Id, Codigo = p.Codigo, Modelo = p.Modelo, Marca = p.Marca, TipoUnidad = p.TipoUnidad, Activo = p.Activo }">Editar</button>
                                 <button class="btn btn-ghost" @onclick="() => TogglePat(p.Id)">@(p.Activo ? "Dar de baja" : "Activar")</button>
                             </td>
                         </tr>
@@ -179,6 +207,43 @@
         resultadoImport = res.Ok
             ? $"Listo: {res.Importados} lavados importados, {res.Omitidos} omitidos por duplicado (de {res.FilasLeidas} filas). " +
               $"Catálogo: +{res.OperariosNuevos} operarios, +{res.PatentesNuevas} patentes."
+            : "Error: " + res.Error;
+    }
+
+    // Importación del maestro de patentes
+    private string rutaPatentes = @"C:\Users\roberto.sanabria\Downloads\Libro1.xlsx";
+    private bool importandoPat;
+    private bool resultadoPatOk;
+    private string? resultadoPat;
+
+    private async Task ImportarPatentesRuta()
+    {
+        importandoPat = true; resultadoPat = null;
+        MostrarPat(await Imp.ImportarPatentesDesdeArchivoAsync(rutaPatentes));
+        await Cargar();
+        importandoPat = false;
+    }
+
+    private async Task ImportarPatentesArchivo(InputFileChangeEventArgs e)
+    {
+        importandoPat = true; resultadoPat = null;
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024).CopyToAsync(ms);
+            ms.Position = 0;
+            MostrarPat(await Imp.ImportarPatentesAsync(ms));
+            await Cargar();
+        }
+        catch (Exception ex) { resultadoPatOk = false; resultadoPat = "Error: " + ex.Message; }
+        importandoPat = false;
+    }
+
+    private void MostrarPat(ImportPatentesResultado res)
+    {
+        resultadoPatOk = res.Ok;
+        resultadoPat = res.Ok
+            ? $"Listo: {res.Nuevas} patentes nuevas, {res.Actualizadas} actualizadas (de {res.FilasLeidas} filas)."
             : "Error: " + res.Error;
     }
 
