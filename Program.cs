@@ -27,18 +27,23 @@ builder.Services.AddScoped<ImportacionService>();
 builder.Services.AddScoped<UsuarioService>();
 
 // ---------- Autenticación ----------
-if (builder.Environment.IsDevelopment())
+// Interruptor: el login con Microsoft 365 (Entra) se activa SOLO si AzureAd:Enabled = true.
+// Apagado (default) => la app funciona abierta y auto-loguea como admin (DevAuthHandler).
+// Para prenderlo en Azure: App settings AzureAd__Enabled = true.
+var entraHabilitado = builder.Configuration.GetValue<bool>("AzureAd:Enabled")
+    && !builder.Environment.IsDevelopment();
+if (entraHabilitado)
 {
-    // En desarrollo se simula el login (sin Entra) para poder probar.
-    builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
-        .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, null);
-}
-else
-{
-    // En producción: login con Microsoft 365 (Entra ID).
+    // Login con Microsoft 365 (Entra ID).
     builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
         .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
     builder.Services.AddControllersWithViews().AddMicrosoftIdentityUI();
+}
+else
+{
+    // Sin login: se simula el usuario admin para que todo funcione (demo / local).
+    builder.Services.AddAuthentication(DevAuthHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, DevAuthHandler>(DevAuthHandler.SchemeName, null);
 }
 
 builder.Services.AddAuthorization(options =>
@@ -82,7 +87,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-if (!app.Environment.IsDevelopment())
+if (entraHabilitado)
     app.MapControllers(); // endpoints de sign-in / sign-out de Microsoft Identity
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

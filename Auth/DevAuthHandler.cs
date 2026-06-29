@@ -23,7 +23,7 @@ public class DevAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
         var claims = new[]
         {
             new Claim("preferred_username", email),
-            new Claim("name", "Roberto Sanabria (dev)"),
+            new Claim("name", "Roberto Sanabria"),
         };
         var identity = new ClaimsIdentity(claims, SchemeName, "name", ClaimTypes.Role);
         var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName);
