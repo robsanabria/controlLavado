@@ -1,14 +1,15 @@
 :root {
-    --bg: #0f1419;
-    --panel: #1a212b;
-    --panel-2: #222b37;
-    --line: #2e3a48;
-    --text: #e6edf3;
-    --muted: #8b97a6;
-    --accent: #2f9e6e;
-    --accent-2: #3aa0d8;
-    --danger: #d8553a;
-    --warn: #d8a23a;
+    /* Paleta alineada al sistema de etiquetas (Sistemas Offal): navy + indigo + cian. */
+    --bg: #0a1124;
+    --panel: #111a2f;
+    --panel-2: #17223b;
+    --line: #233149;
+    --text: #e8edf5;
+    --muted: #8a97ad;
+    --accent: #6366f1;     /* índigo: botones primarios, nav activo, marca */
+    --accent-2: #26b6d9;   /* cian: links, info, en proceso */
+    --danger: #e2574e;
+    --warn: #f5a623;
 }
 
 * { box-sizing: border-box; }
@@ -38,7 +39,8 @@ h1, h2 { margin: 0; }
     top: 0;
     z-index: 10;
 }
-.brand { font-weight: 700; font-size: 16px; }
+.brand { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 10px; }
+.brand-logo { height: 26px; width: 26px; object-fit: contain; }
 .links { display: flex; gap: 8px; }
 .navlink {
     color: var(--muted);
@@ -165,8 +167,8 @@ textarea { resize: vertical; width: 100%; }
 
 /* Botón de acción según el estadio actual del lavado */
 .btn-estado-Atracado { background: #e07b39; color: #fff; }         /* Atracado → naranja */
-.btn-estado-Lavando { background: var(--accent); color: #fff; }    /* Lavando → verde */
-.btn-estado-Lavadoterminado { background: #6b59c9; color: #fff; }  /* Lavado terminado → violeta (próximo: desatraco) */
+.btn-estado-Lavando { background: #2f9e6e; color: #fff; }          /* Lavando → verde */
+.btn-estado-Lavadoterminado { background: #8a6df0; color: #fff; }  /* Lavado terminado → violeta (próximo: desatraco) */
 
 .error { color: var(--danger); font-weight: 600; margin: 6px 0; }
 .muted { color: var(--muted); }
@@ -199,7 +201,7 @@ textarea { resize: vertical; width: 100%; }
     z-index: 60;
     width: 340px;
     max-width: 78vw;
-    background: #0f1419;
+    background: #0a1124;
     border: 1px solid var(--line);
     border-radius: 8px;
     padding: 11px 13px;
@@ -241,8 +243,8 @@ textarea { resize: vertical; width: 100%; }
 .estado-Pendiente { background: #3a4250; color: #cfd8e3; }
 .estado-Atracado { background: var(--warn); color: #1a1a1a; }
 .estado-Lavando { background: var(--accent-2); color: #fff; }
-.estado-Lavadoterminado { background: #6b59c9; color: #fff; }
-.estado-Finalizado { background: var(--accent); color: #fff; }
+.estado-Lavadoterminado { background: #8a6df0; color: #fff; }
+.estado-Finalizado { background: #2f9e6e; color: #fff; }
 
 /* ---------- Grilla ---------- */
 .tabla-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 8px; }
@@ -260,7 +262,7 @@ textarea { resize: vertical; width: 100%; }
     .content { padding: 14px 12px; }
 
     .topbar { height: auto; padding: 8px 10px; flex-wrap: wrap; gap: 10px; }
-    .brand { width: 100%; text-align: center; font-size: 15px; }
+    .brand { width: 100%; justify-content: center; text-align: center; font-size: 15px; }
     .links { width: 100%; gap: 6px; }
     .navlink { flex: 1; text-align: center; padding: 12px 8px; }
 
