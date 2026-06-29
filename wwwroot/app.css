@@ -51,6 +51,10 @@ h1, h2 { margin: 0; }
 .navlink:hover { color: var(--text); background: var(--panel-2); }
 .navlink.active { color: #fff; background: var(--accent); }
 
+.userbox { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.user { color: var(--muted); font-size: 13px; font-weight: 600; }
+.navlink.salir { color: var(--danger); }
+
 .content { max-width: 1500px; margin: 0 auto; padding: 24px; }
 
 /* ---------- Page header ---------- */

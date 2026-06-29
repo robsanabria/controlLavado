@@ -1,0 +1,84 @@
+@page "/usuarios"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@using System.Globalization
+@inject UsuarioService Svc
+
+<PageTitle>Usuarios</PageTitle>
+
+<header class="page-head">
+    <h1>Usuarios</h1>
+    <p>Quién puede entrar y quién es administrador. Cualquier usuario de la empresa entra como operario; acá lo promovés a admin.</p>
+</header>
+
+<div class="panel">
+    <section class="card">
+        <h2>Agregar / promover</h2>
+        <div class="form-grid">
+            <label><span>Email (Microsoft 365)</span><input @bind="nuevo.Email" placeholder="usuario@offal.com.ar" /></label>
+            <label><span>Nombre (opcional)</span><input @bind="nuevo.Nombre" /></label>
+            <label><span>Rol</span>
+                <select @bind="nuevo.EsAdmin">
+                    <option value="false">Operario</option>
+                    <option value="true">Administrador</option>
+                </select>
+            </label>
+        </div>
+        @if (error is not null) { <p class="error">@error</p> }
+        <div class="curso-actions">
+            <button class="btn btn-primary" @onclick="Agregar">Guardar</button>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Usuarios (@usuarios.Count)</h2>
+        <div class="tabla-scroll">
+            <table class="grilla">
+                <thead><tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Último acceso</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var u in usuarios)
+                    {
+                        <tr style="@(u.Activo ? "" : "opacity:.5")">
+                            <td>@u.Email</td>
+                            <td>@u.Nombre</td>
+                            <td>@(u.EsAdmin ? "Administrador" : "Operario")</td>
+                            <td>@(u.Activo ? "Activo" : "Baja")</td>
+                            <td>@(u.UltimoAcceso?.ToString("dd/MM/yyyy HH:mm", Es) ?? "—")</td>
+                            <td class="acciones">
+                                <button class="btn btn-ghost" @onclick="() => ToggleAdmin(u.Id)">@(u.EsAdmin ? "Quitar admin" : "Hacer admin")</button>
+                                <button class="btn btn-ghost" @onclick="() => ToggleActivo(u.Id)">@(u.Activo ? "Dar de baja" : "Activar")</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@code {
+    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-AR");
+    private List<Usuario> usuarios = new();
+    private Usuario nuevo = new();
+    private string? error;
+
+    protected override async Task OnInitializedAsync() => await Cargar();
+
+    private async Task Cargar() => usuarios = await Svc.ListarAsync();
+
+    private async Task Agregar()
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(nuevo.Email) || !nuevo.Email.Contains('@'))
+        {
+            error = "Ingresá un email válido.";
+            return;
+        }
+        await Svc.GuardarAsync(nuevo);
+        nuevo = new();
+        await Cargar();
+    }
+
+    private async Task ToggleAdmin(int id) { await Svc.ToggleAdminAsync(id); await Cargar(); }
+    private async Task ToggleActivo(int id) { await Svc.ToggleActivoAsync(id); await Cargar(); }
+}

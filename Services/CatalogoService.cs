@@ -98,6 +98,8 @@ public class CatalogoService
             db.Patentes.AddRange(Catalogo.PatentesSeed.Select(c => new Patente { Codigo = c }));
         if (!db.Frigorificos.Any())
             db.Frigorificos.AddRange(Catalogo.FrigorificosSeed.Select(n => new Frigorifico { Nombre = n }));
+        if (!db.Usuarios.Any(u => u.Email == "roberto.sanabria@offal.com.ar"))
+            db.Usuarios.Add(new Usuario { Email = "roberto.sanabria@offal.com.ar", Nombre = "Roberto Sanabria", EsAdmin = true });
         db.SaveChanges();
     }
 }

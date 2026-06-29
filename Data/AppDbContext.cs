@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Operario> Operarios => Set<Operario>();
     public DbSet<Patente> Patentes => Set<Patente>();
     public DbSet<Frigorifico> Frigorificos => Set<Frigorifico>();
+    public DbSet<Usuario> Usuarios => Set<Usuario>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

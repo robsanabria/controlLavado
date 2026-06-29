@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject IHostEnvironment Env
 
 <div class="app">
     <nav class="topbar">
@@ -8,9 +9,23 @@
             <NavLink class="navlink" href="/hielo">Fábrica de Hielo</NavLink>
             <NavLink class="navlink" href="/hiel">Hiel</NavLink>
             <NavLink class="navlink" href="/varias">Varias</NavLink>
-            <NavLink class="navlink" href="/reportes">Reportes</NavLink>
-            <NavLink class="navlink" href="/catalogos">Configuración</NavLink>
+            <AuthorizeView Roles="Admin">
+                <NavLink class="navlink" href="/reportes">Reportes</NavLink>
+                <NavLink class="navlink" href="/catalogos">Configuración</NavLink>
+                <NavLink class="navlink" href="/usuarios">Usuarios</NavLink>
+            </AuthorizeView>
         </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="userbox">
+                    <span class="user">@context.User.Identity?.Name</span>
+                    @if (!Env.IsDevelopment())
+                    {
+                        <a class="navlink salir" href="/MicrosoftIdentity/Account/SignOut">Salir</a>
+                    }
+                </div>
+            </Authorized>
+        </AuthorizeView>
     </nav>
     <main class="content">
         @Body
