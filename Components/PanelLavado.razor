@@ -189,103 +189,6 @@
         }
     </section>
 
-    <!-- ============ HISTORIAL / GRILLA ============ -->
-    <section class="card">
-        <h2>Historial (@historial.Count)</h2>
-        <div class="tabla-scroll">
-            <table class="grilla">
-                <thead>
-                    <tr>
-                        <th>Marca temporal</th>
-                        <th>Fecha</th>
-                        <th>Turno</th>
-                        <th>N° Offal</th>
-                        <th>N° Contrato</th>
-                        <th>Op. por fecha</th>
-                        <th>@(EsCamion ? "Patente" : "Equipo")</th>
-                        @if (EsCamion)
-                        {
-                            <th>Dársena</th>
-                            <th>Frigorífico</th>
-                            <th>Tambores</th>
-                            <th>Pallets</th>
-                        }
-                        <th>Operarios</th>
-                        @if (EsCamion)
-                        {
-                            <th>Inicio Atraco</th>
-                        }
-                        <th>Inicio Lavado</th>
-                        <th>Fin Lavado</th>
-                        @if (EsCamion)
-                        {
-                            <th>Desatraco</th>
-                        }
-                        <th>Incidencias</th>
-                        @if (EsCamion)
-                        {
-                            <th>Atraco→Lavado</th>
-                        }
-                        <th>Lavado</th>
-                        @if (EsCamion)
-                        {
-                            <th>Fin→Desatraco</th>
-                        }
-                        <th>Total</th>
-                        <th>Semana</th>
-                        <th>Op. usados</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var l in historial)
-                    {
-                        <tr>
-                            <td>@FmtFechaHora(l.MarcaTemporal)</td>
-                            <td>@l.Fecha.ToString("dd/MM/yyyy")</td>
-                            <td>@l.Turno</td>
-                            <td class="num">@l.NumOffal</td>
-                            <td class="num">@l.NumContrato</td>
-                            <td class="num">@l.OperariosUsados</td>
-                            <td>@l.Patente</td>
-                            @if (EsCamion)
-                            {
-                                <td>@l.Darsena</td>
-                                <td>@l.Frigorifico</td>
-                                <td class="num">@l.Tambores</td>
-                                <td class="num">@l.Pallets</td>
-                            }
-                            <td class="ops">@l.OperariosTexto</td>
-                            @if (EsCamion)
-                            {
-                                <td>@FmtHora(l.InicioAtraco)</td>
-                            }
-                            <td>@FmtHora(l.InicioLavado)</td>
-                            <td>@FmtHora(l.FinLavado)</td>
-                            @if (EsCamion)
-                            {
-                                <td>@FmtHora(l.Desatraco)</td>
-                            }
-                            <td class="ops">@l.Incidencias</td>
-                            @if (EsCamion)
-                            {
-                                <td>@FmtDur(l.DurAtracoLavado)</td>
-                            }
-                            <td>@FmtDur(l.DurLavado)</td>
-                            @if (EsCamion)
-                            {
-                                <td>@FmtDur(l.DurFinDesatraco)</td>
-                            }
-                            <td><b>@FmtDur(l.TiempoTotal)</b></td>
-                            <td class="num">@l.Semana</td>
-                            <td class="num">@l.OperariosUsados</td>
-                            <td><span class="estado estado-@l.Estado.Replace(" ", "")">@l.Estado</span></td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    </section>
 </div>
 
 @code {
@@ -294,7 +197,6 @@
     private bool EsCamion => Tipo == TipoLavado.Camion;
 
     private List<Lavado> enCurso = new();
-    private List<Lavado> historial = new();
 
     // Catálogos cargados desde la BD (solo activos).
     private List<Operario> operarios = new();
@@ -325,10 +227,6 @@
         frigorificos = await Cat.FrigorificosAsync(soloActivos: true);
 
         enCurso = await Svc.EnCursoAsync(Tipo);
-        // La grilla muestra únicamente los lavados que todavía no se finalizaron.
-        historial = (await Svc.ListarAsync(Tipo))
-            .Where(l => l.Estado != EstadoLavado.Finalizado)
-            .ToList();
         disp = await Svc.DisponibilidadAsync(Tipo);
     }
 
@@ -464,7 +362,6 @@
     // --- Formato ---
     private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-AR");
     private static string FmtHora(DateTime? d) => d?.ToString("h:mm:ss tt", Es) ?? "--:--";
-    private static string FmtFechaHora(DateTime? d) => d?.ToString("dd/MM/yyyy HH:mm:ss", Es) ?? "--";
     private static string FmtDur(TimeSpan? t) => t.HasValue ? $"{(int)t.Value.TotalHours}:{t.Value.Minutes:00}:{t.Value.Seconds:00}" : "--";
 
     // Modelo de formulario (con operarios como lista mutable).
