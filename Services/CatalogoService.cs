@@ -111,6 +111,22 @@ public class CatalogoService
         await db.SaveChangesAsync();
     }
 
+    // Variantes de operarios (misma persona mal escrita o con apellido/nombre invertido)
+    // -> nombre correcto. Confirmado con el usuario.
+    private static readonly Dictionary<string, string> CorreccionesOperarios = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ALMDENDRA LEANDRO"] = "ALMENDRA LEANDRO",
+        ["ALMENDRAS LEANDRO"] = "ALMENDRA LEANDRO",
+        ["LOCHER THOMAS"] = "LOCHER TOMAS",
+        ["YAIR FRANCO"] = "FRANCO YAIR",
+    };
+
+    // Operarios a eliminar (registros de prueba / basura).
+    private static readonly HashSet<string> OperariosABorrar = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "TESTAPE TESTNOM",
+    };
+
     /// <summary>
     /// Limpieza de datos: pasa todo a un formato único (patentes "AA 999 AA", textos en
     /// MAYÚSCULAS) y elimina duplicados en operarios, patentes, frigoríficos, usuarios y
@@ -130,9 +146,16 @@ public class CatalogoService
         foreach (var f in frigs) f.Nombre = Normalizador.Mayus(f.Nombre);
         Deduplicar(db.Frigorificos, frigs, f => f.Nombre, f => f.Activo, f => f.Id);
 
-        // Operarios: MAYÚSCULAS + sin duplicados por apellido+nombre.
+        // Operarios: MAYÚSCULAS + correcciones de nombre + sin duplicados por apellido+nombre.
         var ops = await db.Operarios.ToListAsync();
         foreach (var o in ops) { o.Apellido = Normalizador.Mayus(o.Apellido); o.Nombre = Normalizador.Mayus(o.Nombre); o.Dni = (o.Dni ?? "").Trim(); }
+        // Borra variantes mal escritas / invertidas (la versión correcta ya existe) y registros de prueba.
+        foreach (var o in ops.Where(o => CorreccionesOperarios.ContainsKey(o.NombreCompleto)
+                                         || OperariosABorrar.Contains(o.NombreCompleto)).ToList())
+        {
+            db.Operarios.Remove(o);
+            ops.Remove(o);
+        }
         Deduplicar(db.Operarios, ops, o => $"{o.Apellido}|{o.Nombre}", o => o.Activo, o => o.Id);
 
         // Usuarios: email en minúscula + sin duplicados.
@@ -145,9 +168,13 @@ public class CatalogoService
         foreach (var l in lavados)
             if (l.Tipo == TipoLavado.Camion) l.Patente = Normalizador.Patente(l.Patente);
 
-        // Operarios por lavado: MAYÚSCULAS + sin el mismo operario repetido en un lavado.
+        // Operarios por lavado: MAYÚSCULAS, nombre corregido + sin el mismo operario repetido en un lavado.
         var lops = await db.LavadoOperarios.ToListAsync();
-        foreach (var lo in lops) lo.Nombre = Normalizador.Mayus(lo.Nombre);
+        foreach (var lo in lops)
+        {
+            lo.Nombre = Normalizador.Mayus(lo.Nombre);
+            if (CorreccionesOperarios.TryGetValue(lo.Nombre, out var canon)) lo.Nombre = canon;
+        }
         foreach (var g in lops.GroupBy(x => (x.LavadoId, x.Nombre)).Where(g => g.Count() > 1))
             foreach (var extra in g.OrderBy(x => x.Id).Skip(1))
                 db.LavadoOperarios.Remove(extra);
