@@ -2,10 +2,17 @@
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
             <NotAuthorized>
-                <div class="page-head" style="padding:24px">
-                    <h1>Sin permiso</h1>
-                    <p class="muted">No tenés acceso a esta sección. Pedile a un administrador que te habilite.</p>
-                </div>
+                @if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <div class="page-head" style="padding:24px">
+                        <h1>Sin permiso</h1>
+                        <p class="muted">No tenés acceso a esta sección. Pedile a un administrador que te habilite.</p>
+                    </div>
+                }
             </NotAuthorized>
         </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />

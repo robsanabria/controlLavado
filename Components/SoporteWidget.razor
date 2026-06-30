@@ -42,7 +42,7 @@
         var cuerpo =
             $"{descripcion}\n\n" +
             "------------------------------\n" +
-            $"Enviado por: {usuario}\n" +
+            $"Enviado por: {(string.IsNullOrWhiteSpace(usuario) ? "(sin iniciar sesión)" : usuario)}\n" +
             $"Pantalla: {Nav.Uri}\n";
         var url = $"mailto:tickets@offal.com.ar?subject={Uri.EscapeDataString(asuntoTxt)}&body={Uri.EscapeDataString(cuerpo)}";
         await JS.InvokeVoidAsync("abrirCorreo", url);

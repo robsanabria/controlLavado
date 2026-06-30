@@ -42,7 +42,7 @@ var authBuilder = builder.Services.AddAuthentication(options =>
 .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
 {
     options.LoginPath = "/login";
-    options.AccessDeniedPath = "/login";
+    options.AccessDeniedPath = "/sin-permiso";
     options.ExpireTimeSpan = TimeSpan.FromDays(7);
     options.SlidingExpiration = true;
 });
@@ -62,7 +62,8 @@ if (entraHabilitado)
 
 builder.Services.AddAuthorization(options =>
 {
-    options.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build();
+    // El acceso se controla por página (atributo [Authorize] + AuthorizeRouteView),
+    // así los estáticos y el framework (blazor.web.js) quedan accesibles sin login.
     options.AddPolicy("Admin", p => p.RequireRole(RolClaimsTransformation.RolAdmin));
 });
 builder.Services.AddCascadingAuthenticationState();
