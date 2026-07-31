@@ -1,5 +1,4 @@
 @page "/reportes"
-@page "/reportes/{Seccion?}"
 @rendermode InteractiveServer
 @attribute [Authorize(Roles = "Admin,Administrativo")]
 @using System.Globalization
@@ -52,95 +51,46 @@
         <p class="muted" style="margin-top:10px">@ResumenTexto</p>
     </section>
 
-    @* ── RESUMEN: nómina + métricas por turno ── *@
-    @if (!EsDetalle)
-    {
-    <section class="card">
-        <h2>@NominaTitulo <span class="info" tabindex="0" data-tip="@TipNomina">i</span></h2>
-        <div class="nomina-cifras">
-            <div class="cifra">
-                <span class="n">@nomina.Activos</span>
-                <span class="lbl">Nómina activa</span>
-            </div>
-            <div class="cifra">
-                <span class="n">@nomina.Trabajaron</span>
-                <span class="lbl">Trabajaron</span>
-            </div>
-            <div class="cifra">
-                <span class="n">@(nomina.Activos - nomina.Trabajaron)</span>
-                <span class="lbl">No trabajaron</span>
-            </div>
-        </div>
-    </section>
-
-    @if (metricas.Count == 0)
-    {
-        <section class="card"><p class="muted">No hay datos para mostrar en la semana seleccionada.</p></section>
-    }
-    else
-    {
-        @foreach (var t in metricas)
+    <div class="tabs">
+        <button class="tab @(TabActivo == "metricas" ? "on" : "")" type="button" @onclick='() => tab = "metricas"'>Métricas</button>
+        <button class="tab @(TabActivo == "nomina" ? "on" : "")" type="button" @onclick='() => tab = "nomina"'>Nómina</button>
+        @if (MostrarCantidad)
         {
-            <section class="card">
-                <h2>@(t.Turno == "Resumen" ? "Resumen (total)" : "Turno " + t.Turno) <span class="info" tabindex="0" data-tip="@TipMetricas">i</span></h2>
-                <div class="tabla-scroll">
-                    <table class="grilla grilla-center">
-                        <thead>
-                            <tr>
-                                <th>Semana</th>
-                                @if (MostrarCantidad)
-                                {
-                                    <th>Lavados</th>
-                                }
-                                <th>Total hs</th>
-                                <th>Neto hs</th>
-                                <th>HS hombre</th>
-                                <th>Prom. hs</th>
-                                <th>Operarios</th>
-                                <th>Prom. op.</th>
-                                <th>% Var. hs</th>
-                                @if (MostrarCantidad)
-                                {
-                                    <th>% Var. lavados</th>
-                                }
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var s in t.Semanas)
-                            {
-                                <tr>
-                                    <td class="num">@s.Semana</td>
-                                    @if (MostrarCantidad)
-                                    {
-                                        <td class="num">@s.Lavados</td>
-                                    }
-                                    <td class="num">@FmtDur(s.TotalHoras)</td>
-                                    <td class="num">@FmtDur(s.HorasNetas)</td>
-                                    <td class="num">@FmtDur(s.HsHombre)</td>
-                                    <td class="num">@FmtDur(s.PromedioHoras)</td>
-                                    <td class="num">@s.TotalOperarios</td>
-                                    <td class="num">@s.PromedioOperarios.ToString("0.0", Es)</td>
-                                    <td class="num">@FmtVar(s.VarHoras)</td>
-                                    @if (MostrarCantidad)
-                                    {
-                                        <td class="num">@FmtVar(s.VarLavados)</td>
-                                    }
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            <button class="tab @(TabActivo == "frigorifico" ? "on" : "")" type="button" @onclick='() => tab = "frigorifico"'>Frigorífico</button>
         }
-    }
-    }
-    @* ── DETALLE: lavados por frigorífico + horas por operario ── *@
-    else
+        <button class="tab @(TabActivo == "horas" ? "on" : "")" type="button" @onclick='() => tab = "horas"'>Horas por operario</button>
+    </div>
+
+    @if (TabActivo == "nomina")
     {
-        @if (MostrarCantidad && frigorificos.Count > 0)
-        {
-            <section class="card">
-                <h2>Lavados por frigorífico <span class="info" tabindex="0" data-tip="@TipFrigorifico">i</span></h2>
+        <section class="card">
+            <h2>@NominaTitulo <span class="info" tabindex="0" data-tip="@TipNomina">i</span></h2>
+            <div class="nomina-cifras">
+                <div class="cifra">
+                    <span class="n">@nomina.Activos</span>
+                    <span class="lbl">Nómina activa</span>
+                </div>
+                <div class="cifra">
+                    <span class="n">@nomina.Trabajaron</span>
+                    <span class="lbl">Trabajaron</span>
+                </div>
+                <div class="cifra">
+                    <span class="n">@(nomina.Activos - nomina.Trabajaron)</span>
+                    <span class="lbl">No trabajaron</span>
+                </div>
+            </div>
+        </section>
+    }
+    else if (TabActivo == "frigorifico")
+    {
+        <section class="card">
+            <h2>Lavados por frigorífico <span class="info" tabindex="0" data-tip="@TipFrigorifico">i</span></h2>
+            @if (frigorificos.Count == 0)
+            {
+                <p class="muted">Sin datos de frigorífico en el período.</p>
+            }
+            else
+            {
                 <div class="tabla-scroll">
                     <table class="grilla grilla-center">
                         <thead><tr><th>Frigorífico</th><th>Lavados</th></tr></thead>
@@ -155,14 +105,16 @@
                         </tbody>
                     </table>
                 </div>
-            </section>
-        }
-
+            }
+        </section>
+    }
+    else if (TabActivo == "horas")
+    {
         <section class="card">
             <h2>Horas por operario <span class="info" tabindex="0" data-tip="@TipHoras">i</span></h2>
             @if (horas.Filas.Count == 0)
             {
-                <p class="muted">Sin operarios en la semana.</p>
+                <p class="muted">Sin operarios en el período.</p>
             }
             else
             {
@@ -206,13 +158,72 @@
             }
         </section>
     }
+    else
+    {
+        @if (metricas.Count == 0)
+        {
+            <section class="card"><p class="muted">No hay datos para mostrar en el período seleccionado.</p></section>
+        }
+        else
+        {
+            @foreach (var t in metricas)
+            {
+                <section class="card">
+                    <h2>@(t.Turno == "Resumen" ? "Resumen (total)" : "Turno " + t.Turno) <span class="info" tabindex="0" data-tip="@TipMetricas">i</span></h2>
+                    <div class="tabla-scroll">
+                        <table class="grilla grilla-center">
+                            <thead>
+                                <tr>
+                                    <th>Semana</th>
+                                    @if (MostrarCantidad)
+                                    {
+                                        <th>Lavados</th>
+                                    }
+                                    <th>Total hs</th>
+                                    <th>Neto hs</th>
+                                    <th>HS hombre</th>
+                                    <th>Prom. hs</th>
+                                    <th>Operarios</th>
+                                    <th>Prom. op.</th>
+                                    <th>% Var. hs</th>
+                                    @if (MostrarCantidad)
+                                    {
+                                        <th>% Var. lavados</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var s in t.Semanas)
+                                {
+                                    <tr>
+                                        <td class="num">@s.Semana</td>
+                                        @if (MostrarCantidad)
+                                        {
+                                            <td class="num">@s.Lavados</td>
+                                        }
+                                        <td class="num">@FmtDur(s.TotalHoras)</td>
+                                        <td class="num">@FmtDur(s.HorasNetas)</td>
+                                        <td class="num">@FmtDur(s.HsHombre)</td>
+                                        <td class="num">@FmtDur(s.PromedioHoras)</td>
+                                        <td class="num">@s.TotalOperarios</td>
+                                        <td class="num">@s.PromedioOperarios.ToString("0.0", Es)</td>
+                                        <td class="num">@FmtVar(s.VarHoras)</td>
+                                        @if (MostrarCantidad)
+                                        {
+                                            <td class="num">@FmtVar(s.VarLavados)</td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            }
+        }
+    }
 </div>
 
 @code {
-    // Sección activa: "resumen" (default) o "detalle". Viene de la ruta /reportes/{Seccion}.
-    [Parameter] public string? Seccion { get; set; }
-    private bool EsDetalle => string.Equals(Seccion, "detalle", StringComparison.OrdinalIgnoreCase);
-
     private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-AR");
 
     // Textos de ayuda (tooltips) de cada reporte.
@@ -262,6 +273,10 @@
 
     // La columna de cantidad (lavados) solo aplica a camiones; en tareas se oculta.
     private bool MostrarCantidad => tipoSel is "Camion" or "Todos";
+
+    // Pestaña activa dentro de Reportes. Si «frigorifico» no aplica (circuito de tareas), cae en «metricas».
+    private string tab = "metricas";
+    private string TabActivo => (tab == "frigorifico" && !MostrarCantidad) ? "metricas" : tab;
 
     private string NominaTitulo => semanaDesdeKey == semanaHastaKey ? "Nómina de la semana" : "Nómina del período";
 
