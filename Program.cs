@@ -139,6 +139,19 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// Cabeceras de seguridad en todas las respuestas (equivalente a helmet en las
+// apps Node): anti-clickjacking, nosniff y política de referer. El CSP se
+// agregará por separado. Quitar Server / X-Powered-By (que agrega IIS) se hace
+// en la config del App Service, no acá.
+app.Use(async (context, next) =>
+{
+    var headers = context.Response.Headers;
+    headers["X-Frame-Options"] = "SAMEORIGIN";
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["Referrer-Policy"] = "no-referrer";
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
