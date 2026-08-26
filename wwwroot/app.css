@@ -55,6 +55,11 @@ h1, h2 { margin: 0; }
     padding: 5px;
 }
 .brand-logo-circle img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.brand-wordmark { height: 17px; width: auto; display: block; flex-shrink: 0; }
+.brand-sub {
+    color: var(--muted); font-weight: 600; font-size: 13px; white-space: nowrap;
+    padding-left: 11px; border-left: 1px solid var(--line);
+}
 .links { display: flex; gap: 8px; flex-wrap: wrap; }
 .navlink {
     color: var(--muted);
