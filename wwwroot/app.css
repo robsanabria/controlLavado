@@ -614,9 +614,13 @@ textarea { resize: vertical; width: 100%; }
 /* ---------- Tablet / mobile: menú hamburguesa ---------- */
 @media (max-width: 820px) {
     .topbar { flex-direction: column; align-items: stretch; gap: 0; padding: 8px 12px; }
-    .topbar-row { width: 100%; justify-content: space-between; }
-    .brand { font-size: 15px; }
-    .hamburger { display: flex; }
+    .topbar-row { width: 100%; justify-content: space-between; gap: 10px; }
+    .brand { font-size: 15px; min-width: 0; }
+    /* El subtítulo del módulo se oculta en mobile: choca con el hamburguesa y ya
+       está en el <h1> de la página. Así la marca + el botón entran sin pisarse. */
+    .brand-sub { display: none; }
+    .brand-wordmark { max-width: 58vw; }
+    .hamburger { display: flex; flex: 0 0 auto; }
 
     .nav-collapse { display: none; flex-direction: column; align-items: stretch; gap: 4px; padding: 8px 0 4px; }
     .nav-collapse.abierto { display: flex; }
@@ -630,7 +634,9 @@ textarea { resize: vertical; width: 100%; }
 
 /* ---------- Mobile (celulares) ---------- */
 @media (max-width: 640px) {
-    .content { padding: 14px 12px; }
+    /* padding-bottom extra: deja espacio para que el botón flotante de ayuda (❓)
+       no tape el botón de acción al final del formulario. */
+    .content { padding: 14px 12px 84px; }
 
     .page-head h1 { font-size: 19px; }
     .page-head p { font-size: 13px; }
@@ -640,6 +646,12 @@ textarea { resize: vertical; width: 100%; }
     .curso-grid { grid-template-columns: 1fr; }
     .curso-actions .btn { flex: 1; }
     .editor .mini { flex-direction: column; }
+
+    /* Pestañas (Reportes): una sola fila desplazable con el dedo, sin apilarse
+       ni cortar el texto ("Horas por operario" entraba en 2 renglones). */
+    .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab { flex: 0 0 auto; white-space: nowrap; }
 
     /* La grilla es ancha: se desplaza horizontalmente con el dedo */
     .grilla { font-size: 12px; }
