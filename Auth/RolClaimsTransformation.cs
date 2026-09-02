@@ -53,9 +53,17 @@ public class RolClaimsTransformation : IClaimsTransformation
             if (!string.IsNullOrWhiteSpace(usuario.Nombre))
                 identity.AddClaim(new Claim("display_name", usuario.Nombre));
 
-            if (usuario.Rol == RolUsuario.Admin)
+            // Autorización unificada: el ROL sale del padrón central acceso.Permisos
+            // (App='lavados'), no del enum local. La tabla local sigue siendo el ancla
+            // de identidad/login; si no hay permiso central, la persona queda como
+            // operario (sin rol elevado). Un problema transitorio de base no eleva ni bloquea.
+            RolUsuario? rolCentral = null;
+            try { rolCentral = await _usuarios.RolCentralAsync(email); }
+            catch { rolCentral = null; }
+
+            if (rolCentral == RolUsuario.Admin)
                 identity.AddClaim(new Claim(ClaimTypes.Role, RolAdmin));
-            else if (usuario.Rol == RolUsuario.Administrativo)
+            else if (rolCentral == RolUsuario.Administrativo)
                 identity.AddClaim(new Claim(ClaimTypes.Role, RolAdministrativo));
         }
 

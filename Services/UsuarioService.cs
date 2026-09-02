@@ -110,6 +110,7 @@ public class UsuarioService
         u.InvitacionToken = token;
         u.InvitacionExpira = DateTime.Now.AddDays(7);
         await db.SaveChangesAsync();
+        await UpsertPermisoCentralAsync(db, u.Email, rol);  // el rol invitado va al padrón central
         return (u, token, null);
     }
 
@@ -151,8 +152,62 @@ public class UsuarioService
         await using var db = await _factory.CreateDbContextAsync();
         var u = await db.Usuarios.FindAsync(id);
         if (u is null) return;
-        u.Rol = rol;
+        u.Rol = rol;                 // se mantiene por consistencia de la pantalla local
         await db.SaveChangesAsync();
+        await UpsertPermisoCentralAsync(db, u.Email, rol);  // autorización real: acceso.Permisos
+    }
+
+    // ── Autorización unificada (acceso.Permisos, App='lavados') ──────────────
+    // La tabla local LavadosUsuarios queda como ancla de identidad/login; el ROL
+    // efectivo se lee y escribe en el padrón central acceso.Permisos.
+
+    private static string RolToCentral(RolUsuario rol) => rol switch
+    {
+        RolUsuario.Admin => "ADMIN",
+        RolUsuario.Administrativo => "ADMINISTRATIVO",
+        _ => "OPERARIO",
+    };
+
+    /// <summary>Rol central de la persona para esta app (o null si no tiene permiso cargado).</summary>
+    public async Task<RolUsuario?> RolCentralAsync(string email)
+    {
+        email = (email ?? "").Trim().ToLowerInvariant();
+        await using var db = await _factory.CreateDbContextAsync();
+        var conn = db.Database.GetDbConnection();
+        if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"SELECT TOP 1 p.Rol
+                            FROM acceso.Usuarios u
+                            JOIN acceso.Permisos p ON p.UsuarioId = u.UsuarioId AND p.App = 'lavados'
+                            WHERE u.Email = @email AND u.Activo = 1";
+        var pe = cmd.CreateParameter();
+        pe.ParameterName = "@email";
+        pe.Value = email;
+        cmd.Parameters.Add(pe);
+        var rol = (await cmd.ExecuteScalarAsync()) as string;
+        if (string.IsNullOrWhiteSpace(rol)) return null;
+        return rol.Trim().ToUpperInvariant() switch
+        {
+            "ADMIN" => RolUsuario.Admin,
+            "ADMINISTRATIVO" => RolUsuario.Administrativo,
+            _ => RolUsuario.Operario,
+        };
+    }
+
+    /// <summary>Asegura la identidad en el padrón central y upsertea el permiso 'lavados'.</summary>
+    private static async Task UpsertPermisoCentralAsync(AppDbContext db, string email, RolUsuario rol)
+    {
+        email = (email ?? "").Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email)) return;
+        await db.Database.ExecuteSqlRawAsync(@"
+            IF NOT EXISTS (SELECT 1 FROM acceso.Usuarios WHERE Email = {0})
+                INSERT INTO acceso.Usuarios (Email) VALUES ({0});
+            MERGE acceso.Permisos AS t
+            USING (SELECT UsuarioId FROM acceso.Usuarios WHERE Email = {0}) AS s
+               ON t.UsuarioId = s.UsuarioId AND t.App = 'lavados'
+            WHEN MATCHED THEN UPDATE SET Rol = {1}
+            WHEN NOT MATCHED THEN INSERT (UsuarioId, App, Rol) VALUES (s.UsuarioId, 'lavados', {1});",
+            email, RolToCentral(rol));
     }
 
     public async Task ToggleActivoAsync(int id)
