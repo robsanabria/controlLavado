@@ -22,7 +22,7 @@ public record MetricaSemana(
 /// <summary>Bloque de métricas: un turno (Mañana / Tarde) o el "Resumen" (total).</summary>
 public record MetricasTurno(string Turno, List<MetricaSemana> Semanas);
 
-public record HorasOperario(string Turno, string Operario, TipoOperario Tipo, Dictionary<int, TimeSpan> PorSemana, Dictionary<int, int> DiasPorSemana, int DiasTrabajados, TimeSpan Total);
+public record HorasOperario(string Turno, string Operario, TipoOperario Tipo, Dictionary<int, TimeSpan> PorSemana, Dictionary<int, int> DiasPorSemana, int DiasTrabajados, TimeSpan Total, bool TieneSolape);
 
 public record HorasReporte(List<int> Semanas, List<HorasOperario> Filas);
 
@@ -146,17 +146,20 @@ public class ReporteService
 
     /// <summary>
     /// Horas trabajadas por operario y semana, agrupadas por turno (réplica de la "Hoja 4").
-    /// A cada operario presente en un lavado se le imputa la duración total de ese lavado.
+    /// A cada operario se le imputa el tiempo de sus lavados, pero UNIENDO los intervalos
+    /// que se solapan: si dos lavados suyos se pisan en el tiempo, ese tramo cuenta una
+    /// sola vez (una persona no puede estar en dos lavados a la vez). Marca TieneSolape
+    /// cuando hubo superposición, para poder revisar la carga.
     /// </summary>
     public HorasReporte CalcularHorasPorOperario(List<Lavado> lavados, IReadOnlyDictionary<string, string?> turnoPorOperario)
     {
         var semanas = lavados.Select(l => l.Semana).Distinct().OrderBy(x => x).ToList();
         var acum = new Dictionary<(string Turno, string Operario),
-            (TipoOperario Tipo, Dictionary<int, TimeSpan> Sem, HashSet<DateOnly> Dias, Dictionary<int, HashSet<DateOnly>> DiasSem)>();
+            (TipoOperario Tipo, List<(DateTime Ini, DateTime Fin, int Semana)> Iv, HashSet<DateOnly> Dias, Dictionary<int, HashSet<DateOnly>> DiasSem)>();
 
         foreach (var l in lavados)
         {
-            var dur = l.TiempoTotal ?? TimeSpan.Zero;
+            var iv = l.IntervaloTrabajo;
             foreach (var o in l.Operarios)
             {
                 // El turno es el ASIGNADO al operario (no la hora del lavado).
@@ -164,28 +167,56 @@ public class ReporteService
                 var key = (turnoOp, o.Nombre);
                 if (!acum.TryGetValue(key, out var v))
                 {
-                    v = (o.Tipo, new Dictionary<int, TimeSpan>(), new HashSet<DateOnly>(), new Dictionary<int, HashSet<DateOnly>>());
+                    v = (o.Tipo, new List<(DateTime, DateTime, int)>(), new HashSet<DateOnly>(), new Dictionary<int, HashSet<DateOnly>>());
                     acum[key] = v;
                 }
-                v.Sem.TryGetValue(l.Semana, out var cur);
-                v.Sem[l.Semana] = cur + dur;
                 v.Dias.Add(l.Fecha);
                 if (!v.DiasSem.TryGetValue(l.Semana, out var ds)) { ds = new HashSet<DateOnly>(); v.DiasSem[l.Semana] = ds; }
                 ds.Add(l.Fecha);
+                if (iv is not null) v.Iv.Add((iv.Value.Inicio, iv.Value.Fin, l.Semana));
             }
         }
 
         int Rank(string turno) => Array.IndexOf(OrdenTurnos, turno) is var i && i >= 0 ? i : 99;
         var filas = acum
-            .Select(kv => new HorasOperario(
-                kv.Key.Turno, kv.Key.Operario, kv.Value.Tipo, kv.Value.Sem,
-                kv.Value.DiasSem.ToDictionary(x => x.Key, x => x.Value.Count),
-                kv.Value.Dias.Count,
-                kv.Value.Sem.Values.Aggregate(TimeSpan.Zero, (a, b) => a + b)))
+            .Select(kv =>
+            {
+                // Horas por semana = unión de los intervalos de esa semana (sin duplicar solapes).
+                var porSem = kv.Value.Iv
+                    .GroupBy(x => x.Semana)
+                    .ToDictionary(g => g.Key, g => UnirIntervalos(g.Select(x => (x.Ini, x.Fin))));
+                var total = porSem.Values.Aggregate(TimeSpan.Zero, (a, b) => a + b);
+                // Hubo solape si la suma cruda supera a la unión (por más de 1 minuto de tolerancia).
+                var bruta = kv.Value.Iv.Aggregate(TimeSpan.Zero, (a, x) => a + (x.Fin - x.Ini));
+                var solape = bruta - total > TimeSpan.FromMinutes(1);
+                return new HorasOperario(
+                    kv.Key.Turno, kv.Key.Operario, kv.Value.Tipo, porSem,
+                    kv.Value.DiasSem.ToDictionary(x => x.Key, x => x.Value.Count),
+                    kv.Value.Dias.Count, total, solape);
+            })
             .OrderBy(f => Rank(f.Turno)).ThenBy(f => f.Operario)
             .ToList();
 
         return new HorasReporte(semanas, filas);
+    }
+
+    /// <summary>
+    /// Suma la duración de una lista de intervalos UNIENDO los que se solapan
+    /// (los tramos pisados cuentan una sola vez). Los intervalos ya vienen recortados
+    /// al tope de 10 h desde <see cref="Lavado.IntervaloTrabajo"/>.
+    /// </summary>
+    private static TimeSpan UnirIntervalos(IEnumerable<(DateTime Ini, DateTime Fin)> intervalos)
+    {
+        var total = TimeSpan.Zero;
+        DateTime? curIni = null, curFin = null;
+        foreach (var (ini, fin) in intervalos.OrderBy(x => x.Ini))
+        {
+            if (curFin is null) { curIni = ini; curFin = fin; continue; }
+            if (ini <= curFin.Value) { if (fin > curFin.Value) curFin = fin; }  // solapa/continúa → se extiende
+            else { total += curFin.Value - curIni!.Value; curIni = ini; curFin = fin; }
+        }
+        if (curFin is not null) total += curFin.Value - curIni!.Value;
+        return total;
     }
 
     /// <summary>Resumen por operario y mes.</summary>
@@ -215,7 +246,11 @@ public class ReporteService
 
     private static OperarioResumen Construir(string operario, (TipoOperario Tipo, List<Lavado> Lavs) v)
     {
-        var horas = v.Lavs.Aggregate(TimeSpan.Zero, (a, l) => a + (l.TiempoTotal ?? TimeSpan.Zero));
+        // Horas del operario = unión de los intervalos de sus lavados (sin duplicar solapes).
+        var horas = UnirIntervalos(v.Lavs
+            .Select(l => l.IntervaloTrabajo)
+            .Where(x => x is not null)
+            .Select(x => (x!.Value.Inicio, x!.Value.Fin)));
         var dias = v.Lavs.Select(l => l.Fecha).Distinct().Count();
         var camiones = v.Lavs.Count(l => l.Tipo == TipoLavado.Camion);
         var prom = v.Lavs.Count > 0 ? TimeSpan.FromSeconds(horas.TotalSeconds / v.Lavs.Count) : TimeSpan.Zero;
@@ -291,7 +326,8 @@ public class ReporteService
             ws.Cell(1, col++).Value = $"Sem {sem} d";
         }
         ws.Cell(1, col++).Value = "Días trab.";
-        ws.Cell(1, col).Value = "Total hs";
+        ws.Cell(1, col++).Value = "Total hs";
+        ws.Cell(1, col).Value = "Solape";
         ws.Range(1, 1, 1, col).Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.LightGray);
 
         int row = 2;
@@ -309,7 +345,13 @@ public class ReporteService
                 ws.Cell(row, col++).Value = d;
             }
             ws.Cell(row, col++).Value = f.DiasTrabajados;
-            ws.Cell(row, col).Value = FmtDur(f.Total);
+            ws.Cell(row, col++).Value = FmtDur(f.Total);
+            // Marca los operarios con lavados superpuestos (horas ya unidas, sin duplicar).
+            if (f.TieneSolape)
+            {
+                ws.Cell(row, col).Value = "⚠ Superpuesto";
+                ws.Cell(row, 2).Style.Font.SetFontColor(XLColor.DarkOrange);
+            }
             row++;
         }
         ws.SheetView.FreezeRows(1);

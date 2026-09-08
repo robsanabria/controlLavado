@@ -139,7 +139,14 @@
                             {
                                 <tr>
                                     <td>@f.Turno</td>
-                                    <td>@f.Operario</td>
+                                    <td>
+                                        @f.Operario
+                                        @if (f.TieneSolape)
+                                        {
+                                            <span class="solape" tabindex="0"
+                                                  data-tip="Tiene lavados que se superponen en el tiempo. Las horas ya están unidas (los tramos pisados cuentan una sola vez); conviene revisar la carga de ese día.">⚠</span>
+                                        }
+                                    </td>
                                     <td>@f.Tipo</td>
                                     @foreach (var sem in horas.Semanas)
                                     {
@@ -251,7 +258,10 @@
     private const string TipHoras =
         "Horas trabajadas por cada operario en el período.\n\n" +
         "• «hs» horas trabajadas y «d» días trabajados.\n" +
-        "• Total hs: suma del período.";
+        "• Total hs: suma del período.\n" +
+        "• Cada lavado se recorta a un tope de 10 h (marcas mal cargadas no inflan el total).\n" +
+        "• Si el operario tiene lavados que se superponen en el tiempo, ese tramo cuenta una sola vez " +
+        "(no se duplican horas). El ⚠ marca esos casos para revisar la carga.";
 
     // Primera semana con datos validados (Sem 26 = lunes 22/06/2026). No se muestran
     // ni se comparan semanas anteriores a esta.

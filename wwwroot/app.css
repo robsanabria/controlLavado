@@ -536,7 +536,17 @@ textarea { resize: vertical; width: 100%; }
     text-transform: none;
     letter-spacing: 0;
 }
-.info::after {
+/* Marca de solape (⚠) junto al operario: usa el mismo tooltip que .info. */
+.solape {
+    color: var(--warn, #f5a623);
+    font-size: 13px;
+    cursor: help;
+    margin-left: 6px;
+    position: relative;
+    vertical-align: middle;
+}
+.info::after,
+.solape::after {
     content: attr(data-tip);
     position: absolute;
     top: 145%;
@@ -561,7 +571,9 @@ textarea { resize: vertical; width: 100%; }
     pointer-events: none;
 }
 .info:hover::after,
-.info:focus::after { opacity: 1; visibility: visible; }
+.info:focus::after,
+.solape:hover::after,
+.solape:focus::after { opacity: 1; visibility: visible; }
 
 /* ---------- En curso ---------- */
 .curso-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }

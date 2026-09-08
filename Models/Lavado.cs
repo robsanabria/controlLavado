@@ -90,6 +90,13 @@ public class Lavado
     [NotMapped]
     public string OperariosTexto => string.Join(", ", Operarios.Select(o => o.Nombre));
 
+    /// <summary>
+    /// Tope de duración de un lavado: 10 h. Por encima se asume una marca mal cargada
+    /// (falta un Fin/Desatraco, quedó de otro día, etc.) y se recorta a 10 h para no
+    /// inflar los reportes (pedido de gerencia).
+    /// </summary>
+    public static readonly TimeSpan TopeDuracion = TimeSpan.FromHours(10);
+
     [NotMapped]
     public TimeSpan? DurAtracoLavado => Resta(InicioLavado, InicioAtraco);
 
@@ -104,8 +111,34 @@ public class Lavado
         ? Resta(Desatraco, InicioAtraco)
         : Resta(FinLavado, InicioLavado);
 
+    /// <summary>
+    /// Intervalo real de trabajo [inicio, fin] recortado al tope de 10 h. Se usa para
+    /// sumar horas por operario SIN duplicar cuando sus lavados se solapan en el tiempo
+    /// (una persona no puede estar en dos lavados a la vez). Null si faltan marcas o el
+    /// fin quedó antes que el inicio.
+    /// </summary>
+    [NotMapped]
+    public (DateTime Inicio, DateTime Fin)? IntervaloTrabajo
+    {
+        get
+        {
+            var ini = Tipo == TipoLavado.Camion ? InicioAtraco ?? InicioLavado : InicioLavado;
+            var fin = Tipo == TipoLavado.Camion ? Desatraco ?? FinLavado : FinLavado;
+            if (ini is null || fin is null || fin.Value < ini.Value) return null;
+            var recortado = fin.Value - ini.Value > TopeDuracion ? ini.Value + TopeDuracion : fin.Value;
+            return (ini.Value, recortado);
+        }
+    }
+
+    // Duración fin−inicio, recortada al tope de 10 h. Un fin anterior al inicio (marca
+    // mal cargada) se descarta (null) en vez de devolver una duración negativa.
     private static TimeSpan? Resta(DateTime? fin, DateTime? inicio)
-        => (fin.HasValue && inicio.HasValue) ? fin.Value - inicio.Value : null;
+    {
+        if (!fin.HasValue || !inicio.HasValue) return null;
+        var d = fin.Value - inicio.Value;
+        if (d < TimeSpan.Zero) return null;
+        return d > TopeDuracion ? TopeDuracion : d;
+    }
 }
 
 /// <summary>Operario asignado a un lavado (puede haber varios por lavado).</summary>
